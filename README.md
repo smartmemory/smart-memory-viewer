@@ -32,7 +32,7 @@ VITE_API_URL=http://localhost:9001      # SmartMemory API
 VITE_SSO_URL=http://localhost:5173      # SmartMemory Web (SSO redirect)
 ```
 
-Production defaults to `https://api.smartmemory.ai` and `https://app.smartmemory.ai`.
+Production defaults to `https://api.smartmemory.ai` and `https://www.smartmemory.ai`.
 
 ## Scripts
 
