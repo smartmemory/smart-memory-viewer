@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { listMemories, getLinks } from '../lib/api';
+import { listMemories, getEdgesBulk, getLinks } from '../lib/api';
 
 // Transform raw API data into Cytoscape elements
 function transformToCytoscapeElements(memories, linksByNode) {
@@ -82,21 +82,35 @@ export function useGraphData() {
         return;
       }
 
-      // Fetch links in parallel batches (max 20 concurrent)
+      // Fetch all edges in a single bulk request (replaces N per-node calls)
+      const nodeIds = memories.map((m) => m.item_id || m.id);
       const linksByNode = {};
-      const batchSize = 20;
-      for (let i = 0; i < memories.length; i += batchSize) {
-        const batch = memories.slice(i, i + batchSize);
-        const results = await Promise.allSettled(
-          batch.map((m) => {
-            const id = m.item_id || m.id;
-            return getLinks(id).then((links) => ({ id, links }));
-          })
-        );
-        for (const result of results) {
-          if (result.status === 'fulfilled') {
-            const { id, links } = result.value;
-            linksByNode[id] = Array.isArray(links) ? links : links?.links || [];
+      try {
+        const edgesRes = await getEdgesBulk(nodeIds);
+        const edges = edgesRes?.edges || [];
+        for (const edge of edges) {
+          const src = edge.source_id;
+          const tgt = edge.target_id;
+          const link = { source_id: src, target_id: tgt, link_type: edge.edge_type };
+          if (!linksByNode[src]) linksByNode[src] = [];
+          linksByNode[src].push(link);
+        }
+      } catch {
+        // Bulk endpoint unavailable — fall back to per-node fetching
+        const batchSize = 20;
+        for (let i = 0; i < memories.length; i += batchSize) {
+          const batch = memories.slice(i, i + batchSize);
+          const results = await Promise.allSettled(
+            batch.map((m) => {
+              const id = m.item_id || m.id;
+              return getLinks(id).then((links) => ({ id, links }));
+            })
+          );
+          for (const result of results) {
+            if (result.status === 'fulfilled') {
+              const { id, links } = result.value;
+              linksByNode[id] = Array.isArray(links) ? links : links?.links || [];
+            }
           }
         }
       }

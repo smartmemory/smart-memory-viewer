@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || 'https://api.smartmemory.ai';
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:9001' : 'https://api.smartmemory.ai');
 
 let authToken = null;
 let workspaceId = null;
@@ -48,4 +48,8 @@ export async function findPath(startId, endId, maxHops = 5) {
 
 export async function searchMemories(query, topK = 20) {
   return request('POST', '/memory/search', { query, top_k: topK, enable_hybrid: true });
+}
+
+export async function getEdgesBulk(nodeIds) {
+  return request('POST', '/memory/graph/edges', { node_ids: nodeIds });
 }

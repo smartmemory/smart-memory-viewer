@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import GraphExplorer from './components/GraphExplorer';
 import { setAuth } from './lib/api';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://api.smartmemory.ai';
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:9001' : 'https://api.smartmemory.ai');
 
 function App() {
   const [authenticated, setAuthenticated] = useState(false);
@@ -10,14 +10,21 @@ function App() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Check URL params for SSO callback token
+    // Check URL params for OAuth callback (token + team from API's /auth/google/callback)
     const params = new URLSearchParams(window.location.search);
     const callbackToken = params.get('token');
-    const callbackWorkspace = params.get('workspace_id');
 
     if (callbackToken) {
       localStorage.setItem('sm_token', callbackToken);
-      if (callbackWorkspace) localStorage.setItem('sm_workspace_id', callbackWorkspace);
+      // Decode JWT to extract tenant_id as workspace_id
+      try {
+        const payload = JSON.parse(atob(callbackToken.split('.')[1]));
+        if (payload.tenant_id) {
+          localStorage.setItem('sm_workspace_id', payload.tenant_id);
+        }
+      } catch {
+        // JWT decode failed — user can set workspace manually
+      }
       // Clean URL
       window.history.replaceState({}, '', window.location.pathname);
     }
@@ -90,8 +97,9 @@ function LoginScreen({ error }) {
   };
 
   const handleSSO = () => {
-    const returnUrl = encodeURIComponent(window.location.origin);
-    window.location.href = `${import.meta.env.VITE_WEB_URL || 'https://app.smartmemory.ai'}/auth/sso?redirect=${returnUrl}`;
+    // Redirect to API's Google OAuth endpoint with viewer URL as callback
+    const callbackUrl = encodeURIComponent(window.location.origin);
+    window.location.href = `${API_URL}/auth/google/login?frontend_callback=${callbackUrl}`;
   };
 
   return (
