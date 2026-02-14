@@ -7,7 +7,9 @@ import SearchBar from './SearchBar';
 import { useGraphData } from '../hooks/useGraphData';
 import { useGraphFilters } from '../hooks/useGraphFilters';
 import { useCytoscape } from '../hooks/useCytoscape';
-import { findPath } from '../lib/api';
+import { findPath, getNeighbors } from '../lib/api';
+
+const MEMORY_TYPES = new Set(['semantic', 'episodic', 'procedural', 'working', 'zettel', 'decision', 'reasoning', 'opinion', 'observation']);
 
 export default function GraphExplorer({ onLogout }) {
   const containerRef = useRef(null);
@@ -16,20 +18,24 @@ export default function GraphExplorer({ onLogout }) {
   const cytoscape = useCytoscape(containerRef);
 
   const [selectedNode, setSelectedNode] = useState(null);
+  const [connectedEdges, setConnectedEdges] = useState([]);
   const [layout, setLayout] = useState('cose-bilkent');
   const [filterPanelOpen, setFilterPanelOpen] = useState(true);
   const [detailPanelOpen, setDetailPanelOpen] = useState(false);
   const [pathMode, setPathMode] = useState(false);
   const [pathNodes, setPathNodes] = useState([]);
   const [pathResult, setPathResult] = useState(null);
+  const [expanding, setExpanding] = useState(false);
 
   // Load elements into Cytoscape when data arrives
+  // layout is intentionally excluded — layout changes are handled by handleLayoutChange
   useEffect(() => {
     if (elements.length > 0) {
       cytoscape.setElements(elements);
       cytoscape.runLayout(layout);
     }
-  }, [elements, cytoscape.setElements, cytoscape.runLayout, layout]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [elements, cytoscape.setElements, cytoscape.runLayout]);
 
   // Apply filters whenever they change
   useEffect(() => {
@@ -41,6 +47,7 @@ export default function GraphExplorer({ onLogout }) {
     setSelectedNode(nodeData);
     setDetailPanelOpen(true);
     cytoscape.selectNode(nodeData.id);
+    setConnectedEdges(cytoscape.getConnectedEdges(nodeData.id));
 
     // Path mode: collect nodes for path finding
     if (pathMode) {
@@ -61,7 +68,86 @@ export default function GraphExplorer({ onLogout }) {
         return next;
       });
     }
-  }, [pathMode, cytoscape.selectNode, cytoscape.highlightElements]);
+  }, [pathMode, cytoscape.selectNode, cytoscape.highlightElements, cytoscape.getConnectedEdges]);
+
+  // Expand neighbors — fetch from API and add to graph
+  const handleExpand = useCallback(async (nodeId) => {
+    setExpanding(true);
+    try {
+      const res = await getNeighbors(nodeId);
+      // API returns { neighbors: [...], item_id: "..." }
+      const neighbors = res?.neighbors || [];
+      if (!Array.isArray(neighbors) || neighbors.length === 0) return;
+
+      const newElements = [];
+
+      for (const item of neighbors) {
+        const id = item.item_id;
+        if (!id) continue;
+        const type = item.memory_type || 'semantic';
+        const label = item.content?.substring(0, 40) || id.substring(0, 12);
+        const category = MEMORY_TYPES.has(type) ? 'memory' : 'entity';
+
+        newElements.push({
+          group: 'nodes',
+          data: {
+            id,
+            label,
+            type,
+            category,
+            content: item.content || '',
+          },
+        });
+
+        // Add edge — link_type comes from the API response
+        const edgeType = item.link_type || 'RELATES_TO';
+        newElements.push({
+          group: 'edges',
+          data: {
+            id: `${nodeId}-${id}:${edgeType}`,
+            source: nodeId,
+            target: id,
+            label: edgeType,
+            type: edgeType,
+          },
+        });
+      }
+
+      cytoscape.addElements(newElements);
+
+      // Position new nodes radially around the expanded node
+      const cy = cytoscape.cy.current;
+      if (cy) {
+        const origin = cy.getElementById(nodeId);
+        if (origin.length) {
+          const pos = origin.position();
+          const newNodeIds = neighbors.map((n) => n.item_id).filter(Boolean);
+          const count = newNodeIds.length || 1;
+          const angle = (2 * Math.PI) / count;
+          newNodeIds.forEach((nid, i) => {
+            const node = cy.getElementById(nid);
+            if (node.length) {
+              // Only position if node doesn't already have a meaningful position
+              const nodePos = node.position();
+              if (nodePos.x === 0 && nodePos.y === 0) {
+                node.position({
+                  x: pos.x + 120 * Math.cos(angle * i),
+                  y: pos.y + 120 * Math.sin(angle * i),
+                });
+              }
+            }
+          });
+        }
+      }
+
+      // Update connected edges display
+      setConnectedEdges(cytoscape.getConnectedEdges(nodeId));
+    } catch (err) {
+      console.error('Failed to expand neighbors:', err);
+    } finally {
+      setExpanding(false);
+    }
+  }, [cytoscape.addElements, cytoscape.cy, cytoscape.getConnectedEdges]);
 
   // Handle layout change
   const handleLayoutChange = useCallback((newLayout) => {
@@ -151,10 +237,14 @@ export default function GraphExplorer({ onLogout }) {
         {detailPanelOpen && selectedNode && (
           <DetailPanel
             node={selectedNode}
+            edges={connectedEdges}
             onClose={() => {
               setDetailPanelOpen(false);
               setSelectedNode(null);
+              setConnectedEdges([]);
             }}
+            onExpand={handleExpand}
+            expanding={expanding}
           />
         )}
       </div>

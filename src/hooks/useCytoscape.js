@@ -168,6 +168,23 @@ export function useCytoscape(containerRef) {
     });
   }, []);
 
+  // Add elements (nodes + edges) without removing existing ones
+  const addElements = useCallback((newElements) => {
+    const cy = cyRef.current;
+    if (!cy) return 0;
+    let addedCount = 0;
+    cy.batch(() => {
+      for (const el of newElements) {
+        const id = el.data?.id;
+        if (id && !cy.getElementById(id).length) {
+          cy.add(el);
+          addedCount++;
+        }
+      }
+    });
+    return addedCount;
+  }, []);
+
   // Select a node and highlight its neighbors
   const selectNode = useCallback((nodeId) => {
     const cy = cyRef.current;
@@ -182,9 +199,19 @@ export function useCytoscape(containerRef) {
     });
   }, []);
 
+  // Get edges connected to a node (for detail panel)
+  const getConnectedEdges = useCallback((nodeId) => {
+    const cy = cyRef.current;
+    if (!cy) return [];
+    const node = cy.getElementById(nodeId);
+    if (!node.length) return [];
+    return node.connectedEdges().map((e) => e.data());
+  }, []);
+
   return {
     cy: cyRef,
     setElements,
+    addElements,
     runLayout,
     zoomIn,
     zoomOut,
@@ -193,5 +220,6 @@ export function useCytoscape(containerRef) {
     clearHighlights,
     highlightElements,
     selectNode,
+    getConnectedEdges,
   };
 }
