@@ -38,7 +38,7 @@ export function useCytoscape(containerRef) {
       cy.destroy();
       cyRef.current = null;
     };
-  }, [containerRef]);
+  }, []);
 
   // Set elements (nodes + edges) — batch update
   const setElements = useCallback((elements) => {

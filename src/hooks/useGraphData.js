@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { listMemories, getLinks } from '../lib/api';
-import { getNodeColor } from '../lib/graphColors';
 
 // Transform raw API data into Cytoscape elements
 function transformToCytoscapeElements(memories, linksByNode) {

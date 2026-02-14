@@ -4,7 +4,11 @@ export const MEMORY_COLORS = {
   episodic: '#f97316',
   procedural: '#ef4444',
   working: '#fb923c',
+  zettel: '#eab308',
   decision: '#f59e0b',
+  reasoning: '#d97706',
+  opinion: '#ea580c',
+  observation: '#dc2626',
 };
 
 export const ENTITY_COLORS = {

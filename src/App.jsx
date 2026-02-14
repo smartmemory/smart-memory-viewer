@@ -27,11 +27,20 @@ function App() {
 
     if (token && workspaceId) {
       setAuth(token, workspaceId);
-      // Verify token with a health check
-      fetch(`${API_URL}/health`)
+      // Verify token with an authenticated endpoint (not /health which is public)
+      fetch(`${API_URL}/memory/list?limit=1`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'X-Workspace-Id': workspaceId,
+        },
+      })
         .then((res) => {
           if (res.ok) {
             setAuthenticated(true);
+          } else if (res.status === 401 || res.status === 403) {
+            localStorage.removeItem('sm_token');
+            localStorage.removeItem('sm_workspace_id');
+            setError('Session expired — please sign in again');
           } else {
             setError('API unavailable');
           }
@@ -58,7 +67,13 @@ function App() {
     return <LoginScreen error={error} />;
   }
 
-  return <GraphExplorer />;
+  const handleLogout = () => {
+    localStorage.removeItem('sm_token');
+    localStorage.removeItem('sm_workspace_id');
+    window.location.reload();
+  };
+
+  return <GraphExplorer onLogout={handleLogout} />;
 }
 
 function LoginScreen({ error }) {

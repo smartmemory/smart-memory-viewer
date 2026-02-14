@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { getNodeColor } from '../lib/graphColors';
 
 export default function SearchBar({ elements, onSearch, onNodeSelect }) {
   const [query, setQuery] = useState('');
@@ -63,6 +64,11 @@ export default function SearchBar({ elements, onSearch, onNodeSelect }) {
     [onNodeSelect]
   );
 
+  // Clear debounce timer on unmount
+  useEffect(() => {
+    return () => clearTimeout(debounceRef.current);
+  }, []);
+
   // Keyboard shortcut: Cmd/Ctrl+K to focus search
   useEffect(() => {
     const handler = (e) => {
@@ -93,7 +99,7 @@ export default function SearchBar({ elements, onSearch, onNodeSelect }) {
               <div className="flex items-center gap-2">
                 <div
                   className="w-2.5 h-2.5 rounded-full shrink-0"
-                  style={{ backgroundColor: r.data.type ? undefined : '#94a3b8' }}
+                  style={{ backgroundColor: getNodeColor(r.data.type, r.data.category) }}
                 />
                 <span className="text-sm text-slate-200 truncate">{r.data.label}</span>
                 <span className="text-xs text-slate-500 capitalize shrink-0">{r.data.type}</span>

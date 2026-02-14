@@ -4,7 +4,6 @@ import { ALL_MEMORY_TYPES, ALL_ENTITY_TYPES } from '../lib/graphColors';
 export function useGraphFilters(elements) {
   const [activeMemoryTypes, setActiveMemoryTypes] = useState(new Set(ALL_MEMORY_TYPES));
   const [activeEntityTypes, setActiveEntityTypes] = useState(new Set(ALL_ENTITY_TYPES));
-  const [showGrounding, setShowGrounding] = useState(true);
   const [activeRelationTypes, setActiveRelationTypes] = useState(null); // null = all
 
   // Extract available types from actual data
@@ -41,12 +40,10 @@ export function useGraphFilters(elements) {
         ids.add(el.data.id);
       } else if (category === 'entity' && activeEntityTypes.has(type)) {
         ids.add(el.data.id);
-      } else if (category === 'grounding' && showGrounding) {
-        ids.add(el.data.id);
       }
     }
     return ids;
-  }, [elements, activeMemoryTypes, activeEntityTypes, showGrounding]);
+  }, [elements, activeMemoryTypes, activeEntityTypes]);
 
   const toggleMemoryType = useCallback((type) => {
     setActiveMemoryTypes((prev) => {
@@ -85,13 +82,11 @@ export function useGraphFilters(elements) {
   return {
     activeMemoryTypes,
     activeEntityTypes,
-    showGrounding,
     activeRelationTypes,
     availableTypes,
     visibleNodeIds,
     toggleMemoryType,
     toggleEntityType,
-    setShowGrounding,
     setActiveRelationTypes,
     selectAllMemoryTypes,
     deselectAllMemoryTypes,

@@ -10,12 +10,10 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@smartmemory/sdk-js": "file:../smart-memory-sdk-js",
     "@tailwindcss/vite": "^4.1.18",
     "cytoscape": "^3.33.1",
     "cytoscape-cose-bilkent": "^4.1.0",
     "cytoscape-dagre": "^2.5.0",
-    "cytoscape-elk": "^2.3.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "tailwindcss": "^4.1.18",

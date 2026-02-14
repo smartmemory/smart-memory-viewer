@@ -4,11 +4,9 @@ export default function FilterPanel({ filters, onClose }) {
   const {
     activeMemoryTypes,
     activeEntityTypes,
-    showGrounding,
     availableTypes,
     toggleMemoryType,
     toggleEntityType,
-    setShowGrounding,
     selectAllMemoryTypes,
     deselectAllMemoryTypes,
     selectAllEntityTypes,
@@ -79,17 +77,6 @@ export default function FilterPanel({ filters, onClose }) {
             </div>
           </section>
         )}
-
-        {/* Grounding */}
-        <section>
-          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Other</h3>
-          <TypeCheckbox
-            type="grounding"
-            color="#9ca3af"
-            checked={showGrounding}
-            onChange={() => setShowGrounding(!showGrounding)}
-          />
-        </section>
 
         {/* Relation Types (informational) */}
         {availableTypes.relationTypes.length > 0 && (

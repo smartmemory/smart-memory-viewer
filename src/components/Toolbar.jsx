@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { exportPNG, exportSVG } from '../lib/export';
 
 const LAYOUTS = [
@@ -21,9 +21,23 @@ export default function Toolbar({
   pathMode,
   stats,
   cy,
+  onLogout,
 }) {
   const [exportOpen, setExportOpen] = useState(false);
   const [layoutOpen, setLayoutOpen] = useState(false);
+  const toolbarRef = useRef(null);
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (toolbarRef.current && !toolbarRef.current.contains(e.target)) {
+        setExportOpen(false);
+        setLayoutOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleExport = useCallback((format) => {
     const cyInstance = cy?.current;
@@ -34,7 +48,7 @@ export default function Toolbar({
   }, [cy]);
 
   return (
-    <div className="h-12 bg-slate-800 border-b border-slate-700 flex items-center px-4 gap-2 shrink-0 z-40">
+    <div ref={toolbarRef} className="h-12 bg-slate-800 border-b border-slate-700 flex items-center px-4 gap-2 shrink-0 z-40">
       {/* App title */}
       <div className="flex items-center gap-2 mr-4">
         <div className="w-6 h-6 rounded bg-blue-600 flex items-center justify-center text-xs font-bold text-white">G</div>
@@ -144,6 +158,17 @@ export default function Toolbar({
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
       </button>
+
+      {/* Logout */}
+      {onLogout && (
+        <button
+          onClick={onLogout}
+          className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded transition-colors"
+          title="Sign out"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+        </button>
+      )}
     </div>
   );
 }

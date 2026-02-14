@@ -58,8 +58,5 @@ export default defineConfig({
   },
   server: {
     port: 5177,
-    cors: {
-      origin: ['https://api.smartmemory.ai'],
-    },
   },
 })

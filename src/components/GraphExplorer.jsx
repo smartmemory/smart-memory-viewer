@@ -9,7 +9,7 @@ import { useGraphFilters } from '../hooks/useGraphFilters';
 import { useCytoscape } from '../hooks/useCytoscape';
 import { findPath } from '../lib/api';
 
-export default function GraphExplorer() {
+export default function GraphExplorer({ onLogout }) {
   const containerRef = useRef(null);
   const { elements, loading, error, stats, refresh } = useGraphData();
   const filters = useGraphFilters(elements);
@@ -61,7 +61,7 @@ export default function GraphExplorer() {
         return next;
       });
     }
-  }, [pathMode, cytoscape]);
+  }, [pathMode, cytoscape.selectNode, cytoscape.highlightElements]);
 
   // Handle layout change
   const handleLayoutChange = useCallback((newLayout) => {
@@ -131,6 +131,7 @@ export default function GraphExplorer() {
         pathNodes={pathNodes}
         stats={stats}
         cy={cytoscape.cy}
+        onLogout={onLogout}
       />
 
       <div className="flex-1 flex overflow-hidden relative">
