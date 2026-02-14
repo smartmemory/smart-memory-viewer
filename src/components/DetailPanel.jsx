@@ -1,11 +1,24 @@
+import { useState, useEffect } from 'react';
 import { getNodeColor } from '../lib/graphColors';
 
+const EDGES_PAGE_SIZE = 10;
+
 export default function DetailPanel({ node, edges = [], onClose, onExpand, expanding }) {
+  const [edgesShown, setEdgesShown] = useState(EDGES_PAGE_SIZE);
+
+  // Reset pagination when the selected node changes
+  const nodeId = node?.id;
+  useEffect(() => {
+    setEdgesShown(EDGES_PAGE_SIZE);
+  }, [nodeId]);
+
   if (!node) return null;
 
   const color = getNodeColor(node.type, node.category);
   const created = node.created_at ? new Date(node.created_at).toLocaleString() : null;
   const updated = node.updated_at ? new Date(node.updated_at).toLocaleString() : null;
+  const paginatedEdges = edges.slice(0, edgesShown);
+  const hasMore = edges.length > edgesShown;
 
   return (
     <div className="w-72 bg-slate-800 border-l border-slate-700 overflow-y-auto shrink-0 flex flex-col">
@@ -78,8 +91,8 @@ export default function DetailPanel({ node, edges = [], onClose, onExpand, expan
             <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
               Connections ({edges.length})
             </h3>
-            <div className="space-y-1 max-h-40 overflow-y-auto">
-              {edges.map((edge) => {
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {paginatedEdges.map((edge) => {
                 // edge.source/target may be string IDs or node references depending on Cytoscape state
                 const srcId = typeof edge.source === 'string' ? edge.source : edge.source?.toString?.() || edge.source;
                 const tgtId = typeof edge.target === 'string' ? edge.target : edge.target?.toString?.() || edge.target;
@@ -99,6 +112,14 @@ export default function DetailPanel({ node, edges = [], onClose, onExpand, expan
                   </div>
                 );
               })}
+              {hasMore && (
+                <button
+                  onClick={() => setEdgesShown((prev) => prev + EDGES_PAGE_SIZE)}
+                  className="w-full text-center text-xs text-blue-400 hover:text-blue-300 py-1 transition-colors"
+                >
+                  Show more ({edges.length - edgesShown} remaining)
+                </button>
+              )}
             </div>
           </section>
         )}

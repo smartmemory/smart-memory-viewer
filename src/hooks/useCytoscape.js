@@ -38,6 +38,7 @@ export function useCytoscape(containerRef) {
       cy.destroy();
       cyRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- containerRef is a stable useRef, runs once on mount
   }, []);
 
   // Set elements (nodes + edges) — batch update
@@ -208,6 +209,69 @@ export function useCytoscape(containerRef) {
     return node.connectedEdges().map((e) => e.data());
   }, []);
 
+  // LOD clustering — group nodes by type into compound parents when node count exceeds threshold
+  const LOD_THRESHOLD = 200;
+
+  const removeClustering = useCallback(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    cy.batch(() => {
+      cy.nodes().forEach((n) => n.move({ parent: null }));
+      cy.nodes('.lod-cluster').remove();
+    });
+  }, []);
+
+  const applyClustering = useCallback(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    const visibleNodes = cy.nodes(':visible').not(':parent');
+    if (visibleNodes.length <= LOD_THRESHOLD) {
+      removeClustering();
+      return;
+    }
+
+    // Group visible nodes by type
+    const groups = {};
+    visibleNodes.forEach((node) => {
+      const type = node.data('type') || 'unknown';
+      if (!groups[type]) groups[type] = [];
+      groups[type].push(node);
+    });
+
+    cy.batch(() => {
+      // Step 1: Unparent all children from existing clusters
+      cy.nodes().forEach((n) => {
+        if (n.parent().hasClass('lod-cluster')) {
+          n.move({ parent: null });
+        }
+      });
+      // Step 2: Remove old cluster parents
+      cy.nodes('.lod-cluster').remove();
+
+      // Step 3: Create new clusters and parent nodes into them
+      for (const [type, nodes] of Object.entries(groups)) {
+        // Only cluster groups with 5+ nodes
+        if (nodes.length < 5) continue;
+
+        const clusterId = `__cluster_${type}`;
+        cy.add({
+          group: 'nodes',
+          data: {
+            id: clusterId,
+            label: `${type} (${nodes.length})`,
+            type,
+            category: 'cluster',
+          },
+          classes: 'lod-cluster',
+        });
+
+        for (const node of nodes) {
+          node.move({ parent: clusterId });
+        }
+      }
+    });
+  }, [removeClustering]);
+
   return {
     cy: cyRef,
     setElements,
@@ -221,5 +285,7 @@ export function useCytoscape(containerRef) {
     highlightElements,
     selectNode,
     getConnectedEdges,
+    applyClustering,
+    removeClustering,
   };
 }

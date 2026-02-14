@@ -53,3 +53,7 @@ export async function searchMemories(query, topK = 20) {
 export async function getEdgesBulk(nodeIds) {
   return request('POST', '/memory/graph/edges', { node_ids: nodeIds });
 }
+
+export async function getTemporalSnapshot(timestamp, limit = 2000) {
+  return request('GET', `/memory/temporal/at/${encodeURIComponent(timestamp)}?limit=${limit}`);
+}

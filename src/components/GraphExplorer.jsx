@@ -4,28 +4,33 @@ import Toolbar from './Toolbar';
 import FilterPanel from './FilterPanel';
 import DetailPanel from './DetailPanel';
 import SearchBar from './SearchBar';
+import TimeTravelSlider from './TimeTravelSlider';
 import { useGraphData } from '../hooks/useGraphData';
 import { useGraphFilters } from '../hooks/useGraphFilters';
 import { useCytoscape } from '../hooks/useCytoscape';
-import { findPath, getNeighbors } from '../lib/api';
-
-const MEMORY_TYPES = new Set(['semantic', 'episodic', 'procedural', 'working', 'zettel', 'decision', 'reasoning', 'opinion', 'observation']);
+import { useUrlState } from '../hooks/useUrlState';
+import { findPath, getNeighbors, getTemporalSnapshot } from '../lib/api';
+import { MEMORY_TYPE_SET } from '../lib/graphColors';
 
 export default function GraphExplorer({ onLogout }) {
   const containerRef = useRef(null);
   const { elements, loading, error, stats, refresh } = useGraphData();
   const filters = useGraphFilters(elements);
   const cytoscape = useCytoscape(containerRef);
+  const { urlState, saveToUrl, getShareableUrl } = useUrlState();
 
   const [selectedNode, setSelectedNode] = useState(null);
   const [connectedEdges, setConnectedEdges] = useState([]);
-  const [layout, setLayout] = useState('cose-bilkent');
+  const [layout, setLayout] = useState(urlState.layout || 'cose-bilkent');
   const [filterPanelOpen, setFilterPanelOpen] = useState(true);
   const [detailPanelOpen, setDetailPanelOpen] = useState(false);
   const [pathMode, setPathMode] = useState(false);
   const [pathNodes, setPathNodes] = useState([]);
   const [pathResult, setPathResult] = useState(null);
   const [expanding, setExpanding] = useState(false);
+  const [timeTravelOpen, setTimeTravelOpen] = useState(!!urlState.asOfTime);
+  const [asOfTime, setAsOfTime] = useState(urlState.asOfTime || null);
+  const [timeTravelLoading, setTimeTravelLoading] = useState(false);
 
   // Load elements into Cytoscape when data arrives
   // layout is intentionally excluded — layout changes are handled by handleLayoutChange
@@ -86,7 +91,7 @@ export default function GraphExplorer({ onLogout }) {
         if (!id) continue;
         const type = item.memory_type || 'semantic';
         const label = item.content?.substring(0, 40) || id.substring(0, 12);
-        const category = MEMORY_TYPES.has(type) ? 'memory' : 'entity';
+        const category = MEMORY_TYPE_SET.has(type) ? 'memory' : 'entity';
 
         newElements.push({
           group: 'nodes',
@@ -172,6 +177,106 @@ export default function GraphExplorer({ onLogout }) {
     cytoscape.clearHighlights();
   }, [cytoscape.clearHighlights]);
 
+  // LOD clustering — apply when node count exceeds threshold after elements load
+  useEffect(() => {
+    if (elements.length > 200) {
+      cytoscape.applyClustering();
+    } else {
+      cytoscape.removeClustering();
+    }
+  }, [elements.length, cytoscape.applyClustering, cytoscape.removeClustering]);
+
+  // Time travel — fetch temporal snapshot and replace graph
+  const handleTimeTravel = useCallback(async (isoTimestamp) => {
+    if (!isoTimestamp) {
+      // "Live" — reload current graph
+      refresh();
+      setAsOfTime(null);
+      return;
+    }
+    setTimeTravelLoading(true);
+    setAsOfTime(isoTimestamp);
+    try {
+      const res = await getTemporalSnapshot(isoTimestamp);
+      // Backend temporal.py returns { state: [...], count: N, timestamp: "..." }
+      const items = res?.state || res?.items || res?.memories || [];
+      if (Array.isArray(items) && items.length > 0) {
+        // Re-use the same transform logic from useGraphData by rebuilding elements
+        // For simplicity: build nodes only (edges are harder without a bulk call)
+        const newElements = items.map((item) => ({
+          group: 'nodes',
+          data: {
+            id: item.item_id || item.id,
+            label: item.title || item.content?.substring(0, 40) || (item.item_id || item.id).substring(0, 12),
+            type: item.memory_type || 'semantic',
+            category: 'memory',
+            content: item.content || '',
+            confidence: item.confidence,
+            created_at: item.created_at,
+            updated_at: item.updated_at,
+            metadata: item.metadata || {},
+          },
+        }));
+        cytoscape.setElements(newElements);
+        cytoscape.runLayout(layout);
+      }
+    } catch (err) {
+      console.error('Time travel failed:', err);
+    } finally {
+      setTimeTravelLoading(false);
+    }
+  }, [refresh, cytoscape.setElements, cytoscape.runLayout, layout]);
+
+  // Copy shareable link to clipboard
+  const handleCopyLink = useCallback(() => {
+    const cy = cytoscape.cy.current;
+    const state = {
+      layout,
+      selected: selectedNode?.id || null,
+      filters: [...filters.activeMemoryTypes, ...filters.activeEntityTypes],
+      zoom: cy?.zoom() || 1,
+      pan: cy?.pan() || { x: 0, y: 0 },
+      asOfTime,
+    };
+    const url = getShareableUrl(state);
+    saveToUrl(state);
+    navigator.clipboard.writeText(url).catch(() => {
+      // Fallback for non-HTTPS contexts
+      console.warn('Clipboard write failed — URL saved to address bar');
+    });
+  }, [layout, selectedNode, filters.activeMemoryTypes, filters.activeEntityTypes, asOfTime, cytoscape.cy, getShareableUrl, saveToUrl]);
+
+  // Restore URL state on initial load (select node, zoom, pan, time-travel)
+  const urlRestoredRef = useRef(false);
+  useEffect(() => {
+    if (urlRestoredRef.current) return;
+    if (elements.length === 0 && !urlState.asOfTime) return;
+    urlRestoredRef.current = true;
+
+    // Restore time-travel (fetch temporal snapshot)
+    if (urlState.asOfTime) {
+      handleTimeTravel(urlState.asOfTime);
+      return; // Time-travel replaces the graph — skip zoom/pan/select until it loads
+    }
+
+    const cy = cytoscape.cy.current;
+    if (!cy || cy.nodes().length === 0) return;
+
+    // Restore zoom/pan
+    if (urlState.zoom) cy.zoom(urlState.zoom);
+    if (urlState.pan) cy.pan(urlState.pan);
+
+    // Restore selected node
+    if (urlState.selected) {
+      const node = cy.getElementById(urlState.selected);
+      if (node.length) {
+        handleNodeClick(node.data());
+        cy.animate({ center: { eles: node }, duration: 300 });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [elements]); // Run once when elements first arrive
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-slate-900">
@@ -214,10 +319,12 @@ export default function GraphExplorer({ onLogout }) {
         onToggleFilters={() => setFilterPanelOpen((p) => !p)}
         onPathMode={handlePathMode}
         pathMode={pathMode}
-        pathNodes={pathNodes}
         stats={stats}
         cy={cytoscape.cy}
         onLogout={onLogout}
+        onCopyLink={handleCopyLink}
+        onToggleTimeTravelSlider={() => setTimeTravelOpen((p) => !p)}
+        timeTravelActive={timeTravelOpen || !!asOfTime}
       />
 
       <div className="flex-1 flex overflow-hidden relative">
@@ -248,6 +355,32 @@ export default function GraphExplorer({ onLogout }) {
           />
         )}
       </div>
+
+      {timeTravelOpen && (
+        <TimeTravelSlider
+          onTimeChange={handleTimeTravel}
+          onClose={() => {
+            setTimeTravelOpen(false);
+            if (asOfTime) {
+              setAsOfTime(null);
+              refresh();
+            }
+          }}
+        />
+      )}
+
+      {timeTravelLoading && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 bg-purple-900/90 border border-purple-600 text-purple-200 px-4 py-2 rounded-lg text-sm z-50 flex items-center gap-2">
+          <div className="w-3 h-3 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+          Loading temporal snapshot...
+        </div>
+      )}
+
+      {asOfTime && !timeTravelLoading && (
+        <div className="absolute top-16 right-4 bg-purple-900/80 border border-purple-600 text-purple-200 px-3 py-1.5 rounded-lg text-xs z-50">
+          Viewing: {new Date(asOfTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+        </div>
+      )}
 
       <SearchBar
         elements={elements}

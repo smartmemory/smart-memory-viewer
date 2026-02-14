@@ -131,5 +131,24 @@ export function getCytoscapeStyles() {
     style: { 'background-color': SPECIAL_COLORS.grounding, width: 16, height: 16 },
   });
 
+  // LOD cluster parent nodes (compound containers)
+  styles.push({
+    selector: 'node.lod-cluster',
+    style: {
+      'background-opacity': 0.12,
+      'background-color': '#64748b',
+      'border-width': 1,
+      'border-color': '#475569',
+      'border-opacity': 0.5,
+      shape: 'round-rectangle',
+      'text-valign': 'top',
+      'text-halign': 'center',
+      'font-size': '11px',
+      'font-weight': 'bold',
+      color: '#94a3b8',
+      'padding': '12px',
+    },
+  });
+
   return styles;
 }
