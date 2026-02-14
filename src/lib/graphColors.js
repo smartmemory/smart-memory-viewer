@@ -50,3 +50,6 @@ export function getNodeSize(category) {
 // Export all known types for filter panels
 export const ALL_MEMORY_TYPES = Object.keys(MEMORY_COLORS);
 export const ALL_ENTITY_TYPES = Object.keys(ENTITY_COLORS);
+
+// Set of actual memory types (excludes 'memory' which is just a fallback color key)
+export const MEMORY_TYPE_SET = new Set(ALL_MEMORY_TYPES.filter((t) => t !== 'memory'));

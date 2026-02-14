@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { listMemories, getEdgesBulk, getLinks } from '../lib/api';
+import { MEMORY_TYPE_SET } from '../lib/graphColors';
 
 // Transform raw API data into Cytoscape elements
 function transformToCytoscapeElements(memories, linksByNode) {
@@ -11,7 +12,7 @@ function transformToCytoscapeElements(memories, linksByNode) {
     const id = item.item_id || item.id;
     const type = item.memory_type || item.type || 'semantic';
     const label = item.title || item.content?.substring(0, 40) || id.substring(0, 12);
-    const category = ['semantic', 'episodic', 'procedural', 'working', 'zettel', 'decision', 'reasoning', 'opinion', 'observation'].includes(type) ? 'memory' : 'entity';
+    const category = MEMORY_TYPE_SET.has(type) ? 'memory' : 'entity';
 
     nodes.push({
       group: 'nodes',
