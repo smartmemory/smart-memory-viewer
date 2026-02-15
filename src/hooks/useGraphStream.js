@@ -42,7 +42,7 @@ export function classifyEvent(raw) {
   // Search
   if (component === 'memory' && operation === 'search') {
     const query = data?.query || '';
-    const resultCount = data?.result_count || data?.top_k || 0;
+    const resultCount = data?.result_count ?? data?.top_k ?? 0;
     const matchIds = data?.result_ids || [];
     return { ...base, category: 'search_highlight', label: `Search: ${resultCount} results for "${query.substring(0, 30)}"`, nodeId: null, matchIds };
   }
@@ -180,6 +180,9 @@ export function useGraphStream(options = {}) {
 
   // WebSocket connection
   useEffect(() => {
+    // Reset unmounted flag — critical for React StrictMode double-mount cycle
+    unmountedRef.current = false;
+
     if (!enabled) {
       setStatus('disconnected');
       return;
