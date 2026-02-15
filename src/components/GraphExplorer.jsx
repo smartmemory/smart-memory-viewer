@@ -8,9 +8,11 @@ import TimeTravelSlider from './TimeTravelSlider';
 import { useGraphData } from '../hooks/useGraphData';
 import { useGraphFilters } from '../hooks/useGraphFilters';
 import { useCytoscape } from '../hooks/useCytoscape';
+import { useGraphStream } from '../hooks/useGraphStream';
 import { useUrlState } from '../hooks/useUrlState';
 import { findPath, getNeighbors, getTemporalSnapshot } from '../lib/api';
 import { MEMORY_TYPE_SET } from '../lib/graphColors';
+import OperationsBar from './OperationsBar';
 
 export default function GraphExplorer({ onLogout }) {
   const containerRef = useRef(null);
@@ -18,6 +20,13 @@ export default function GraphExplorer({ onLogout }) {
   const filters = useGraphFilters(elements);
   const cytoscape = useCytoscape(containerRef);
   const { urlState, saveToUrl, getShareableUrl } = useUrlState();
+
+  // Live event stream from Insights WebSocket
+  const stream = useGraphStream({
+    onNodeAdded: (el) => cytoscape.addElements([el]),
+    onEdgeAdded: (el) => cytoscape.addElements([el]),
+    onSearchHighlight: (ids) => cytoscape.highlightElements(ids),
+  });
 
   const [selectedNode, setSelectedNode] = useState(null);
   const [connectedEdges, setConnectedEdges] = useState([]);
@@ -381,6 +390,27 @@ export default function GraphExplorer({ onLogout }) {
           Viewing: {new Date(asOfTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
         </div>
       )}
+
+      <OperationsBar
+        status={stream.status}
+        operations={stream.operations}
+        opsPerSecond={stream.opsPerSecond}
+        isPaused={stream.isPaused}
+        onPause={stream.pause}
+        onResume={stream.resume}
+        onOperationClick={(op) => {
+          if (op.nodeId) {
+            const cy = cytoscape.cy.current;
+            if (cy) {
+              const node = cy.getElementById(op.nodeId);
+              if (node.length) {
+                handleNodeClick(node.data());
+                cy.animate({ center: { eles: node }, duration: 300 });
+              }
+            }
+          }
+        }}
+      />
 
       <SearchBar
         elements={elements}
