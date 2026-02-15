@@ -58,7 +58,7 @@ export default function OperationsBar({ status, operations, opsPerSecond, isPaus
             {status === 'connecting' ? 'Connecting...' : 'Not connected to event stream'}
           </span>
         )}
-        {operations.map((op, i) => {
+        {operations.map((op) => {
           const config = CATEGORY_ICONS[op.category] || CATEGORY_ICONS.ingest_started;
           return (
             <button
