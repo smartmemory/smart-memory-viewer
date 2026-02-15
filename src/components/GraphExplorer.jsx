@@ -23,8 +23,8 @@ export default function GraphExplorer({ onLogout }) {
 
   // Live event stream from Insights WebSocket
   const stream = useGraphStream({
-    onNodeAdded: (el) => cytoscape.addElements([el]),
-    onEdgeAdded: (el) => cytoscape.addElements([el]),
+    onNodeAdded: (els) => cytoscape.addElements(els),
+    onEdgeAdded: (els) => cytoscape.addElements(els),
     onSearchHighlight: (ids) => cytoscape.highlightElements(ids),
   });
 

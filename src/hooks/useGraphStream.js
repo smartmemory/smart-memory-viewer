@@ -11,9 +11,9 @@ const DEFAULT_WS_URL = import.meta.env.VITE_INSIGHTS_WS_URL
 export function classifyEvent(raw) {
   if (!raw || raw.type !== 'new_event') return null;
 
-  const { component, operation, name, data, event_type, trace_id, span_id } = raw;
+  const { component, operation, name, data, trace_id } = raw;
   const memoryId = data?.memory_id || data?.item_id || null;
-  const base = { id: raw.event_id, timestamp: raw.timestamp, traceId: trace_id, meta: raw };
+  const base = { id: raw.event_id, timestamp: raw.timestamp || new Date().toISOString(), traceId: trace_id, meta: raw };
 
   // Graph mutations
   if (component === 'graph') {
@@ -90,8 +90,8 @@ export function eventToEdgeElement(data) {
  * @param {string} [options.wsUrl] - WebSocket URL (default: Insights at :9002/events)
  * @param {boolean} [options.enabled=true] - Toggle connection
  * @param {number} [options.bufferSize=100] - Ring buffer capacity
- * @param {Function} [options.onNodeAdded] - Callback with Cytoscape node element
- * @param {Function} [options.onEdgeAdded] - Callback with Cytoscape edge element
+ * @param {Function} [options.onNodeAdded] - Callback with array of Cytoscape node elements (batched)
+ * @param {Function} [options.onEdgeAdded] - Callback with array of Cytoscape edge elements (batched)
  * @param {Function} [options.onSearchHighlight] - Callback with array of matching node IDs
  * @param {Function} [options.onPipelineProgress] - Callback with { nodeId, stage, durationMs }
  */
@@ -120,8 +120,10 @@ export function useGraphStream(options = {}) {
   const batchRef = useRef([]);
   const batchTimerRef = useRef(null);
   const opsTimestampsRef = useRef([]); // timestamps for ops/sec calculation
+  const unmountedRef = useRef(false);
 
   const flushBatch = useCallback(() => {
+    if (unmountedRef.current) return; // guard against post-unmount flush
     const batch = batchRef.current;
     batchRef.current = [];
     if (batch.length === 0) return;
@@ -131,7 +133,11 @@ export function useGraphStream(options = {}) {
     // Keep only last 5 seconds
     const cutoff = now - 5000;
     opsTimestampsRef.current = opsTimestampsRef.current.filter((t) => t > cutoff);
-    setOpsPerSecond(Math.round((opsTimestampsRef.current.length / 5) * 10) / 10);
+    // Use actual elapsed time (not fixed 5s) to avoid inflated rates early on
+    const timestamps = opsTimestampsRef.current;
+    const elapsed = timestamps.length > 1 ? Math.max((now - timestamps[0]) / 1000, 1) : 1;
+    const windowSec = Math.min(elapsed, 5);
+    setOpsPerSecond(Math.round((timestamps.length / windowSec) * 10) / 10);
 
     // Update ring buffer
     setOperations((prev) => {
@@ -159,11 +165,12 @@ export function useGraphStream(options = {}) {
       }
     }
 
+    // Call addElements once per batch — not per element
     if (nodesToAdd.length > 0 && cbs.onNodeAdded) {
-      for (const el of nodesToAdd) cbs.onNodeAdded(el);
+      cbs.onNodeAdded(nodesToAdd);
     }
     if (edgesToAdd.length > 0 && cbs.onEdgeAdded) {
-      for (const el of edgesToAdd) cbs.onEdgeAdded(el);
+      cbs.onEdgeAdded(edgesToAdd);
     }
     if (searchIds.length > 0 && cbs.onSearchHighlight) {
       cbs.onSearchHighlight([...new Set(searchIds)]);
@@ -244,6 +251,7 @@ export function useGraphStream(options = {}) {
 
     return () => {
       unmounted = true;
+      unmountedRef.current = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
       if (batchTimerRef.current) {
         clearTimeout(batchTimerRef.current);
@@ -259,6 +267,12 @@ export function useGraphStream(options = {}) {
   const pause = useCallback(() => {
     isPausedRef.current = true;
     setIsPaused(true);
+    // Clear any pending batch so it doesn't flush while paused
+    if (batchTimerRef.current) {
+      clearTimeout(batchTimerRef.current);
+      batchTimerRef.current = null;
+    }
+    batchRef.current = [];
   }, []);
 
   const resume = useCallback(() => {
