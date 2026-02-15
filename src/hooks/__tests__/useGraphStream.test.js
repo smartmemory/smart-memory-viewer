@@ -116,6 +116,27 @@ describe('classifyEvent', () => {
     expect(result.traceId).toBe('trace-1');
     expect(result.meta).toBe(raw);
   });
+
+  it('generates fallback timestamp when raw.timestamp is missing', () => {
+    const result = classifyEvent(makeEvent({ timestamp: undefined }));
+    expect(result.timestamp).toBeTruthy();
+    // Should be a valid ISO string
+    expect(() => new Date(result.timestamp)).not.toThrow();
+    expect(new Date(result.timestamp).getTime()).not.toBeNaN();
+  });
+
+  it('generates fallback id when event_id is missing', () => {
+    const result = classifyEvent(makeEvent({ event_id: undefined }));
+    expect(result.id).toBeTruthy();
+    expect(typeof result.id).toBe('string');
+    expect(result.id.startsWith('evt-')).toBe(true);
+  });
+
+  it('generates unique fallback ids for consecutive events', () => {
+    const a = classifyEvent(makeEvent({ event_id: undefined }));
+    const b = classifyEvent(makeEvent({ event_id: undefined }));
+    expect(a.id).not.toBe(b.id);
+  });
 });
 
 // --- Element Builders ---

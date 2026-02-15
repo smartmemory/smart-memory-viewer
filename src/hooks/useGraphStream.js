@@ -13,7 +13,8 @@ export function classifyEvent(raw) {
 
   const { component, operation, name, data, trace_id } = raw;
   const memoryId = data?.memory_id || data?.item_id || null;
-  const base = { id: raw.event_id, timestamp: raw.timestamp || new Date().toISOString(), traceId: trace_id, meta: raw };
+  const id = raw.event_id || `evt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const base = { id, timestamp: raw.timestamp || new Date().toISOString(), traceId: trace_id, meta: raw };
 
   // Graph mutations
   if (component === 'graph') {
@@ -123,7 +124,7 @@ export function useGraphStream(options = {}) {
   const unmountedRef = useRef(false);
 
   const flushBatch = useCallback(() => {
-    if (unmountedRef.current) return; // guard against post-unmount flush
+    if (unmountedRef.current || isPausedRef.current) return; // guard against post-unmount or post-pause flush
     const batch = batchRef.current;
     batchRef.current = [];
     if (batch.length === 0) return;

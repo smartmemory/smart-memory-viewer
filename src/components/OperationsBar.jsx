@@ -62,7 +62,7 @@ export default function OperationsBar({ status, operations, opsPerSecond, isPaus
           const config = CATEGORY_ICONS[op.category] || CATEGORY_ICONS.ingest_started;
           return (
             <button
-              key={op.id || i}
+              key={op.id}
               onClick={() => onOperationClick?.(op)}
               className="flex items-center gap-1.5 hover:bg-slate-700/50 rounded px-1.5 py-0.5 transition-colors shrink-0 cursor-pointer"
               title={`${op.label}\n${formatTime(op.timestamp)}\nTrace: ${op.traceId || 'none'}`}
