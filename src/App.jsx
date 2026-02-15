@@ -16,29 +16,44 @@ function App() {
 
     if (callbackToken) {
       localStorage.setItem('sm_token', callbackToken);
-      // Decode JWT to extract tenant_id as workspace_id
-      try {
-        const payload = JSON.parse(atob(callbackToken.split('.')[1]));
-        if (payload.tenant_id) {
-          localStorage.setItem('sm_workspace_id', payload.tenant_id);
-        }
-      } catch {
-        // JWT decode failed — user can set workspace manually
+      // Grab team from callback params (set by /auth/google/callback)
+      const callbackTeam = params.get('team');
+      if (callbackTeam) {
+        localStorage.setItem('sm_team_id', callbackTeam);
+      } else {
+        // Fallback: derive default team from JWT tenant_id
+        try {
+          const payload = JSON.parse(atob(callbackToken.split('.')[1]));
+          if (payload.tenant_id) {
+            const suffix = payload.tenant_id.split('_')[1] || payload.tenant_id;
+            localStorage.setItem('sm_team_id', `team_${suffix}`);
+          }
+        } catch { /* JWT decode failed */ }
       }
       // Clean URL
       window.history.replaceState({}, '', window.location.pathname);
     }
 
     const token = localStorage.getItem('sm_token');
-    const workspaceId = localStorage.getItem('sm_workspace_id');
+    // Migrate from old key if needed
+    let teamId = localStorage.getItem('sm_team_id');
+    if (!teamId) {
+      const legacy = localStorage.getItem('sm_workspace_id');
+      if (legacy) {
+        teamId = legacy;
+        localStorage.setItem('sm_team_id', legacy);
+        localStorage.removeItem('sm_workspace_id');
+      }
+    }
 
-    if (token && workspaceId) {
-      setAuth(token, workspaceId);
+    if (token && teamId) {
+      setAuth(token, teamId);
       // Verify token with an authenticated endpoint (not /health which is public)
+      // Only send X-Team-Id; backend defaults X-Workspace-Id to personal workspace
       fetch(`${API_URL}/memory/list?limit=1`, {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'X-Workspace-Id': workspaceId,
+          'X-Team-Id': teamId,
         },
       })
         .then((res) => {
@@ -46,7 +61,7 @@ function App() {
             setAuthenticated(true);
           } else if (res.status === 401 || res.status === 403) {
             localStorage.removeItem('sm_token');
-            localStorage.removeItem('sm_workspace_id');
+            localStorage.removeItem('sm_team_id');
             setError('Session expired — please sign in again');
           } else {
             setError('API unavailable');
@@ -76,7 +91,7 @@ function App() {
 
   const handleLogout = () => {
     localStorage.removeItem('sm_token');
-    localStorage.removeItem('sm_workspace_id');
+    localStorage.removeItem('sm_team_id');
     window.location.reload();
   };
 
@@ -86,8 +101,6 @@ function App() {
 function LoginScreen({ error: initialError }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [isSignup, setIsSignup] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(initialError || null);
 
@@ -96,37 +109,32 @@ function LoginScreen({ error: initialError }) {
     setError(null);
     setSubmitting(true);
 
-    const endpoint = isSignup ? '/auth/signup' : '/auth/login';
-    const body = isSignup
-      ? { email, password, full_name: fullName || undefined }
-      : { email, password };
-
     try {
-      const res = await fetch(`${API_URL}${endpoint}`, {
+      const res = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ email, password }),
       });
 
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        setError(data?.detail || (res.status === 401 ? 'Invalid email or password' : 'Sign in failed'));
+        setError(data?.detail || 'Sign in failed');
         setSubmitting(false);
         return;
       }
 
       const data = await res.json();
       const token = data.tokens?.access_token;
-      const workspaceId = data.user?.tenant_id;
+      const teamId = data.user?.default_team_id;
 
-      if (!token || !workspaceId) {
-        setError('Unexpected response — missing token or workspace');
+      if (!token || !teamId) {
+        setError('Unexpected response — missing token or team');
         setSubmitting(false);
         return;
       }
 
       localStorage.setItem('sm_token', token);
-      localStorage.setItem('sm_workspace_id', workspaceId);
+      localStorage.setItem('sm_team_id', teamId);
       if (data.tokens?.refresh_token) {
         localStorage.setItem('sm_refresh_token', data.tokens.refresh_token);
       }
@@ -155,19 +163,6 @@ function LoginScreen({ error: initialError }) {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {isSignup && (
-            <div>
-              <label className="block text-sm text-slate-400 mb-1">Full Name</label>
-              <input
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Jane Doe"
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                autoComplete="name"
-              />
-            </div>
-          )}
           <div>
             <label className="block text-sm text-slate-400 mb-1">Email</label>
             <input
@@ -186,10 +181,9 @@ function LoginScreen({ error: initialError }) {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder={isSignup ? 'Min 8 characters' : ''}
               required
               className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              autoComplete={isSignup ? 'new-password' : 'current-password'}
+              autoComplete="current-password"
             />
           </div>
           <button
@@ -197,19 +191,12 @@ function LoginScreen({ error: initialError }) {
             disabled={!email || !password || submitting}
             className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-lg transition-colors"
           >
-            {submitting ? 'Signing in...' : isSignup ? 'Create Account' : 'Sign In'}
+            {submitting ? 'Signing in...' : 'Continue'}
           </button>
         </form>
 
-        <p className="text-center text-sm text-slate-500 mt-4">
-          {isSignup ? 'Already have an account?' : "Don't have an account?"}{' '}
-          <button
-            type="button"
-            onClick={() => { setIsSignup(!isSignup); setError(null); }}
-            className="text-blue-400 hover:text-blue-300 underline"
-          >
-            {isSignup ? 'Sign in' : 'Sign up'}
-          </button>
+        <p className="text-center text-xs text-slate-500 mt-4">
+          New here? Just enter your email and password — we'll create your free account automatically.
         </p>
 
         <div className="relative my-6">

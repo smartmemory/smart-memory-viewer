@@ -1,11 +1,11 @@
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:9001' : 'https://api.smartmemory.ai');
 
 let authToken = null;
-let workspaceId = null;
+let teamId = null;
 
-export function setAuth(token, wsId) {
+export function setAuth(token, team) {
   authToken = token;
-  workspaceId = wsId;
+  teamId = team;
 }
 
 async function request(method, path, body = null) {
@@ -13,7 +13,9 @@ async function request(method, path, body = null) {
     'Content-Type': 'application/json',
   };
   if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-  if (workspaceId) headers['X-Workspace-Id'] = workspaceId;
+  if (teamId) {
+    headers['X-Team-Id'] = teamId;
+  }
 
   const opts = { method, headers };
   if (body) opts.body = JSON.stringify(body);
