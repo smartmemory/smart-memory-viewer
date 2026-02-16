@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { MEMORY_TYPE_SET } from '../lib/graphColors';
 
 const DEFAULT_WS_URL = import.meta.env.VITE_INSIGHTS_WS_URL
-  || (import.meta.env.DEV ? 'ws://localhost:9002/events' : 'wss://insights.smartmemory.ai/events');
+  || (import.meta.env.DEV ? 'ws://localhost:9003/events' : 'wss://insights.smartmemory.ai/events');
 
 /**
  * Classify a raw WebSocket event into a graph-relevant operation.
