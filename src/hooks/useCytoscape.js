@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import cytoscape from 'cytoscape';
 import coseBilkent from 'cytoscape-cose-bilkent';
 import dagre from 'cytoscape-dagre';
@@ -15,13 +15,31 @@ if (!registered) {
 
 export function useCytoscape(containerRef) {
   const cyRef = useRef(null);
+  // Track the container element so we can re-run when it becomes available
+  const [containerReady, setContainerReady] = useState(false);
+  const [cyReady, setCyReady] = useState(false);
 
-  // Initialize Cytoscape when container mounts
+  // Use a ref callback to detect when the container element mounts
+  const setContainerRef = useCallback((node) => {
+    containerRef.current = node;
+    setContainerReady(!!node);
+  }, [containerRef]);
+
+  // Initialize Cytoscape when container is available
   useEffect(() => {
     if (!containerRef.current) return;
 
+    // Already initialized on this container
+    if (cyRef.current) return;
+
+    const container = containerRef.current;
+    // Clean up any leftover DOM (StrictMode double-mount safety)
+    while (container.firstChild) {
+      container.removeChild(container.firstChild);
+    }
+
     const cy = cytoscape({
-      container: containerRef.current,
+      container,
       style: getCytoscapeStyles(),
       elements: [],
       layout: { name: 'preset' },
@@ -33,13 +51,14 @@ export function useCytoscape(containerRef) {
     });
 
     cyRef.current = cy;
+    setCyReady(true);
 
     return () => {
       cy.destroy();
       cyRef.current = null;
+      setCyReady(false);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- containerRef is a stable useRef, runs once on mount
-  }, []);
+  }, [containerReady, containerRef]);
 
   // Set elements (nodes + edges) — batch update
   const setElements = useCallback((elements) => {
@@ -119,25 +138,44 @@ export function useCytoscape(containerRef) {
     if (cy) cy.fit(cy.elements(':visible'), 50);
   }, []);
 
-  // Highlight/dim for filtering
-  const applyFilter = useCallback((visibleNodeIds) => {
+  // Highlight/dim for filtering (nodes by type, edges by type + endpoints)
+  // When cascade=true, nodes with no visible edges are also dimmed
+  const applyFilter = useCallback((visibleNodeIds, visibleEdgeTypes, cascade = true) => {
     const cy = cyRef.current;
     if (!cy) return;
     cy.batch(() => {
+      // Pass 1: determine which edges are visible
+      const nodesWithVisibleEdge = new Set();
+      cy.edges().forEach((edge) => {
+        const srcTypeOk = visibleNodeIds.has(edge.source().id());
+        const tgtTypeOk = visibleNodeIds.has(edge.target().id());
+        const edgeTypeOk = !visibleEdgeTypes || visibleEdgeTypes.has(edge.data('type'));
+        if (srcTypeOk && tgtTypeOk && edgeTypeOk) {
+          edge.removeClass('dimmed');
+          nodesWithVisibleEdge.add(edge.source().id());
+          nodesWithVisibleEdge.add(edge.target().id());
+        } else {
+          edge.addClass('dimmed');
+        }
+      });
+
+      // Pass 2: show/dim nodes
       cy.nodes().forEach((node) => {
-        if (visibleNodeIds.has(node.id())) {
+        if (!visibleNodeIds.has(node.id())) {
+          node.addClass('dimmed');
+          return;
+        }
+        // Without cascade: just check node type filter
+        if (!cascade) {
+          node.removeClass('dimmed');
+          return;
+        }
+        // With cascade: also require at least one visible edge (unless isolated)
+        const hasAnyEdge = node.connectedEdges().length > 0;
+        if (!hasAnyEdge || nodesWithVisibleEdge.has(node.id())) {
           node.removeClass('dimmed');
         } else {
           node.addClass('dimmed');
-        }
-      });
-      cy.edges().forEach((edge) => {
-        const srcVisible = visibleNodeIds.has(edge.source().id());
-        const tgtVisible = visibleNodeIds.has(edge.target().id());
-        if (srcVisible && tgtVisible) {
-          edge.removeClass('dimmed');
-        } else {
-          edge.addClass('dimmed');
         }
       });
     });
@@ -274,6 +312,8 @@ export function useCytoscape(containerRef) {
 
   return {
     cy: cyRef,
+    ready: cyReady,
+    setContainerRef,
     setElements,
     addElements,
     runLayout,

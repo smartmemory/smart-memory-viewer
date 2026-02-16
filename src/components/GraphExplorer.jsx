@@ -15,9 +15,9 @@ import { MEMORY_TYPE_SET } from '../lib/graphColors';
 import OperationsBar from './OperationsBar';
 
 export default function GraphExplorer({ onLogout }) {
-  const containerRef = useRef(null);
   const { elements, loading, error, stats, refresh } = useGraphData();
   const filters = useGraphFilters(elements);
+  const containerRef = useRef(null);
   const cytoscape = useCytoscape(containerRef);
   const { urlState, saveToUrl, getShareableUrl } = useUrlState();
 
@@ -41,20 +41,20 @@ export default function GraphExplorer({ onLogout }) {
   const [asOfTime, setAsOfTime] = useState(urlState.asOfTime || null);
   const [timeTravelLoading, setTimeTravelLoading] = useState(false);
 
-  // Load elements into Cytoscape when data arrives
+  // Load elements into Cytoscape when data arrives or cy becomes ready
   // layout is intentionally excluded — layout changes are handled by handleLayoutChange
   useEffect(() => {
-    if (elements.length > 0) {
+    if (elements.length > 0 && cytoscape.ready) {
       cytoscape.setElements(elements);
       cytoscape.runLayout(layout);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [elements, cytoscape.setElements, cytoscape.runLayout]);
+  }, [elements, cytoscape.ready, cytoscape.setElements, cytoscape.runLayout]);
 
   // Apply filters whenever they change
   useEffect(() => {
-    cytoscape.applyFilter(filters.visibleNodeIds);
-  }, [filters.visibleNodeIds, cytoscape.applyFilter]);
+    cytoscape.applyFilter(filters.visibleNodeIds, filters.activeEdgeTypes, filters.cascadeEdgeFilter);
+  }, [filters.visibleNodeIds, filters.activeEdgeTypes, filters.cascadeEdgeFilter, cytoscape.applyFilter]);
 
   // Handle node click from Cytoscape
   const handleNodeClick = useCallback((nodeData) => {
@@ -286,19 +286,7 @@ export default function GraphExplorer({ onLogout }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [elements]); // Run once when elements first arrive
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-slate-900">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4" />
-          <p className="text-slate-400">Loading knowledge graph...</p>
-          <p className="text-slate-500 text-sm mt-2">Fetching nodes and relationships</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
+  if (error && elements.length === 0) {
     return (
       <div className="flex items-center justify-center h-screen bg-slate-900">
         <div className="text-center max-w-md">
@@ -318,6 +306,14 @@ export default function GraphExplorer({ onLogout }) {
 
   return (
     <div className="h-screen w-screen flex flex-col bg-slate-900 overflow-hidden">
+      {loading && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/80 pointer-events-none">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4" />
+            <p className="text-slate-400">Loading knowledge graph...</p>
+          </div>
+        </div>
+      )}
       <Toolbar
         layout={layout}
         onLayoutChange={handleLayoutChange}
@@ -346,6 +342,7 @@ export default function GraphExplorer({ onLogout }) {
 
         <CytoscapeCanvas
           containerRef={containerRef}
+          setContainerRef={cytoscape.setContainerRef}
           onNodeClick={handleNodeClick}
           cy={cytoscape.cy}
         />

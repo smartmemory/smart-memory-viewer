@@ -4,7 +4,8 @@ import { ALL_MEMORY_TYPES, ALL_ENTITY_TYPES } from '../lib/graphColors';
 export function useGraphFilters(elements) {
   const [activeMemoryTypes, setActiveMemoryTypes] = useState(new Set(ALL_MEMORY_TYPES));
   const [activeEntityTypes, setActiveEntityTypes] = useState(new Set(ALL_ENTITY_TYPES));
-  const [activeRelationTypes, setActiveRelationTypes] = useState(null); // null = all
+  const [activeRelationTypes, setActiveRelationTypes] = useState(null); // null = all (initialized from data)
+  const [cascadeEdgeFilter, setCascadeEdgeFilter] = useState(true); // hide nodes with no visible edges
 
   // Extract available types from actual data
   const availableTypes = useMemo(() => {
@@ -79,18 +80,51 @@ export function useGraphFilters(elements) {
     setActiveEntityTypes(new Set());
   }, []);
 
+  // Initialize activeRelationTypes from data on first load
+  const activeEdgeTypes = useMemo(() => {
+    if (activeRelationTypes === null) {
+      // null = all — return the full set from data
+      return new Set(availableTypes.relationTypes);
+    }
+    return activeRelationTypes;
+  }, [activeRelationTypes, availableTypes.relationTypes]);
+
+  const toggleRelationType = useCallback((type) => {
+    setActiveRelationTypes((prev) => {
+      // If null (all), initialize from available and then remove the toggled one
+      const current = prev === null ? new Set(availableTypes.relationTypes) : new Set(prev);
+      if (current.has(type)) current.delete(type);
+      else current.add(type);
+      return current;
+    });
+  }, [availableTypes.relationTypes]);
+
+  const selectAllRelationTypes = useCallback(() => {
+    setActiveRelationTypes(null); // null = all
+  }, []);
+
+  const deselectAllRelationTypes = useCallback(() => {
+    setActiveRelationTypes(new Set());
+  }, []);
+
   return {
     activeMemoryTypes,
     activeEntityTypes,
     activeRelationTypes,
+    activeEdgeTypes,
     availableTypes,
     visibleNodeIds,
     toggleMemoryType,
     toggleEntityType,
+    toggleRelationType,
     setActiveRelationTypes,
     selectAllMemoryTypes,
     deselectAllMemoryTypes,
     selectAllEntityTypes,
     deselectAllEntityTypes,
+    selectAllRelationTypes,
+    deselectAllRelationTypes,
+    cascadeEdgeFilter,
+    toggleCascadeEdgeFilter: () => setCascadeEdgeFilter((prev) => !prev),
   };
 }

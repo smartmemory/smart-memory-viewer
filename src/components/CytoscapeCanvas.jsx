@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-export default function CytoscapeCanvas({ containerRef, onNodeClick, cy }) {
+export default function CytoscapeCanvas({ containerRef, setContainerRef, onNodeClick, cy }) {
   // Wire up Cytoscape events
   useEffect(() => {
     const cyInstance = cy.current;
@@ -35,20 +35,18 @@ export default function CytoscapeCanvas({ containerRef, onNodeClick, cy }) {
     const cyInstance = cy.current;
     if (!cyInstance) return;
 
-    const observer = new ResizeObserver(() => {
-      cyInstance.resize();
-    });
-
     if (containerRef.current) {
+      const observer = new ResizeObserver(() => {
+        cyInstance.resize();
+      });
       observer.observe(containerRef.current);
+      return () => observer.disconnect();
     }
-
-    return () => observer.disconnect();
   }, [cy, containerRef]);
 
   return (
     <div className="flex-1 relative">
-      <div ref={containerRef} className="cytoscape-container absolute inset-0" />
+      <div ref={setContainerRef} className="cytoscape-container absolute inset-0" />
     </div>
   );
 }

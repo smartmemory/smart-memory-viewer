@@ -4,13 +4,19 @@ export default function FilterPanel({ filters, onClose }) {
   const {
     activeMemoryTypes,
     activeEntityTypes,
+    activeEdgeTypes,
     availableTypes,
     toggleMemoryType,
     toggleEntityType,
+    toggleRelationType,
     selectAllMemoryTypes,
     deselectAllMemoryTypes,
     selectAllEntityTypes,
     deselectAllEntityTypes,
+    selectAllRelationTypes,
+    deselectAllRelationTypes,
+    cascadeEdgeFilter,
+    toggleCascadeEdgeFilter,
   } = filters;
 
   return (
@@ -78,17 +84,48 @@ export default function FilterPanel({ filters, onClose }) {
           </section>
         )}
 
-        {/* Relation Types (informational) */}
+        {/* Relation Types */}
         {availableTypes.relationTypes.length > 0 && (
           <section>
-            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Relation Types</h3>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Relation Types</h3>
+              <div className="flex gap-1">
+                <button onClick={selectAllRelationTypes} className="text-[10px] text-slate-500 hover:text-slate-300">All</button>
+                <span className="text-slate-600">|</span>
+                <button onClick={deselectAllRelationTypes} className="text-[10px] text-slate-500 hover:text-slate-300">None</button>
+              </div>
+            </div>
             <div className="space-y-1">
               {availableTypes.relationTypes.map((type) => (
-                <div key={type} className="text-xs text-slate-400 py-0.5 px-1">
-                  {type}
-                </div>
+                <TypeCheckbox
+                  key={type}
+                  type={type}
+                  color="#64748b"
+                  checked={activeEdgeTypes.has(type)}
+                  onChange={() => toggleRelationType(type)}
+                />
               ))}
             </div>
+            <label className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-700/50 py-0.5 px-1 rounded hover:bg-slate-700/50 cursor-pointer transition-colors">
+              <input
+                type="checkbox"
+                checked={cascadeEdgeFilter}
+                onChange={toggleCascadeEdgeFilter}
+                className="sr-only"
+              />
+              <div
+                className={`w-3 h-3 rounded-sm border flex items-center justify-center transition-colors ${
+                  cascadeEdgeFilter ? 'border-transparent bg-blue-500' : 'border-slate-500 bg-transparent'
+                }`}
+              >
+                {cascadeEdgeFilter && (
+                  <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </div>
+              <span className="text-[10px] text-slate-400">Hide orphaned nodes</span>
+            </label>
           </section>
         )}
       </div>
