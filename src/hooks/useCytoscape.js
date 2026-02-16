@@ -70,17 +70,22 @@ export function useCytoscape(containerRef) {
     });
   }, []);
 
-  // Run a layout algorithm
+  // Run a layout algorithm — first run is instant, subsequent runs animate
+  const firstLayoutRef = useRef(true);
+
   const runLayout = useCallback((layoutName = 'cose-bilkent', options = {}) => {
     const cy = cyRef.current;
     if (!cy || cy.nodes().length === 0) return;
+
+    const shouldAnimate = !firstLayoutRef.current;
+    firstLayoutRef.current = false;
 
     const layoutDefaults = {
       'cose-bilkent': {
         name: 'cose-bilkent',
         quality: 'default',
-        animate: 'end',
-        animationDuration: 500,
+        animate: shouldAnimate ? 'end' : false,
+        animationDuration: 400,
         nodeDimensionsIncludeLabels: true,
         idealEdgeLength: 100,
         edgeElasticity: 0.45,
@@ -93,27 +98,27 @@ export function useCytoscape(containerRef) {
       dagre: {
         name: 'dagre',
         rankDir: 'TB',
-        animate: true,
-        animationDuration: 500,
+        animate: shouldAnimate,
+        animationDuration: 400,
         nodeSep: 50,
         rankSep: 80,
       },
       circle: {
         name: 'circle',
-        animate: true,
-        animationDuration: 500,
+        animate: shouldAnimate,
+        animationDuration: 400,
       },
       concentric: {
         name: 'concentric',
-        animate: true,
-        animationDuration: 500,
+        animate: shouldAnimate,
+        animationDuration: 400,
         concentric: (node) => node.degree(),
         levelWidth: () => 2,
       },
       grid: {
         name: 'grid',
-        animate: true,
-        animationDuration: 500,
+        animate: shouldAnimate,
+        animationDuration: 400,
         condense: true,
       },
     };

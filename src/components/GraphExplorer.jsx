@@ -47,6 +47,11 @@ export default function GraphExplorer({ onLogout }) {
     if (elements.length > 0 && cytoscape.ready) {
       cytoscape.setElements(elements);
       cytoscape.runLayout(layout);
+      // Replay any WS events that arrived during the API fetch (deduped by addElements)
+      const pending = stream.drainPending();
+      if (pending.length > 0) {
+        cytoscape.addElements(pending);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [elements, cytoscape.ready, cytoscape.setElements, cytoscape.runLayout]);
@@ -163,6 +168,12 @@ export default function GraphExplorer({ onLogout }) {
     }
   }, [cytoscape.addElements, cytoscape.cy, cytoscape.getConnectedEdges]);
 
+  // Refresh — clear pending WS buffer before fetching so replay is clean
+  const handleRefresh = useCallback(() => {
+    stream.drainPending();
+    refresh();
+  }, [refresh, stream]);
+
   // Handle layout change
   const handleLayoutChange = useCallback((newLayout) => {
     setLayout(newLayout);
@@ -199,7 +210,7 @@ export default function GraphExplorer({ onLogout }) {
   const handleTimeTravel = useCallback(async (isoTimestamp) => {
     if (!isoTimestamp) {
       // "Live" — reload current graph
-      refresh();
+      handleRefresh();
       setAsOfTime(null);
       return;
     }
@@ -234,7 +245,7 @@ export default function GraphExplorer({ onLogout }) {
     } finally {
       setTimeTravelLoading(false);
     }
-  }, [refresh, cytoscape.setElements, cytoscape.runLayout, layout]);
+  }, [handleRefresh, cytoscape.setElements, cytoscape.runLayout, layout]);
 
   // Copy shareable link to clipboard
   const handleCopyLink = useCallback(() => {
@@ -294,7 +305,7 @@ export default function GraphExplorer({ onLogout }) {
           <p className="text-red-300 font-medium mb-2">Failed to load graph</p>
           <p className="text-slate-400 text-sm mb-4">{error}</p>
           <button
-            onClick={refresh}
+            onClick={handleRefresh}
             className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg transition-colors"
           >
             Retry
@@ -320,7 +331,7 @@ export default function GraphExplorer({ onLogout }) {
         onZoomIn={cytoscape.zoomIn}
         onZoomOut={cytoscape.zoomOut}
         onFitToScreen={cytoscape.fitToScreen}
-        onRefresh={refresh}
+        onRefresh={handleRefresh}
         onToggleFilters={() => setFilterPanelOpen((p) => !p)}
         onPathMode={handlePathMode}
         pathMode={pathMode}
@@ -369,7 +380,7 @@ export default function GraphExplorer({ onLogout }) {
             setTimeTravelOpen(false);
             if (asOfTime) {
               setAsOfTime(null);
-              refresh();
+              handleRefresh();
             }
           }}
         />

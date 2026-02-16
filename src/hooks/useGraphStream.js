@@ -123,6 +123,9 @@ export function useGraphStream(options = {}) {
   const opsTimestampsRef = useRef([]); // timestamps for ops/sec calculation
   const unmountedRef = useRef(false);
 
+  // Pending graph elements — accumulates WS node/edge elements for replay after refresh
+  const pendingElementsRef = useRef([]);
+
   const flushBatch = useCallback(() => {
     if (unmountedRef.current || isPausedRef.current) return; // guard against post-unmount or post-pause flush
     const batch = batchRef.current;
@@ -165,6 +168,9 @@ export function useGraphStream(options = {}) {
         cbs.onPipelineProgress({ nodeId: op.nodeId, stage: op.meta?.operation, durationMs: op.meta?.duration_ms });
       }
     }
+
+    // Accumulate graph elements for replay after refresh (deduped on drain)
+    pendingElementsRef.current.push(...nodesToAdd, ...edgesToAdd);
 
     // Call addElements once per batch — not per element
     if (nodesToAdd.length > 0 && cbs.onNodeAdded) {
@@ -284,5 +290,12 @@ export function useGraphStream(options = {}) {
     setIsPaused(false);
   }, []);
 
-  return { status, operations, opsPerSecond, isPaused, pause, resume };
+  // Drain accumulated WS graph elements (for replay after refresh wipes the canvas)
+  const drainPending = useCallback(() => {
+    const elements = pendingElementsRef.current;
+    pendingElementsRef.current = [];
+    return elements;
+  }, []);
+
+  return { status, operations, opsPerSecond, isPaused, pause, resume, drainPending };
 }
