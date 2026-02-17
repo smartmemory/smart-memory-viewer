@@ -4,11 +4,12 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     tailwindcss(),
-    VitePWA({
+    // PWA only in production — in dev, the SW fights with Vite HMR causing infinite reloads
+    ...(mode === 'production' ? [VitePWA({
       registerType: 'autoUpdate',
       manifest: {
         name: 'SmartMemory Graph Viewer',
@@ -49,14 +50,15 @@ export default defineConfig({
           },
         ],
       },
-    }),
+    })] : []),
   ],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@contracts': path.resolve(__dirname, '../contracts'),
     },
   },
   server: {
     port: 5177,
   },
-})
+}))

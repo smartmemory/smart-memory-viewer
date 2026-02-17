@@ -25,6 +25,8 @@ export default function Toolbar({
   onCopyLink,
   onToggleTimeTravelSlider,
   timeTravelActive,
+  autoFit,
+  onAutoFitChange,
 }) {
   const [exportOpen, setExportOpen] = useState(false);
   const [layoutOpen, setLayoutOpen] = useState(false);
@@ -115,6 +117,15 @@ export default function Toolbar({
         <button onClick={onZoomIn} className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors" title="Zoom in">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
         </button>
+        <label className="flex items-center gap-1 ml-1 cursor-pointer" title="Auto-fit graph to viewport on resize">
+          <input
+            type="checkbox"
+            checked={autoFit}
+            onChange={(e) => onAutoFitChange?.(e.target.checked)}
+            className="w-3.5 h-3.5 rounded border-slate-500 bg-slate-700 text-blue-500 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer"
+          />
+          <span className="text-xs text-slate-400 select-none">Auto</span>
+        </label>
       </div>
 
       <div className="w-px h-6 bg-slate-700" />

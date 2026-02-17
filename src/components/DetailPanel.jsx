@@ -1,16 +1,67 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getNodeColor } from '../lib/graphColors';
+import { createOntologyPattern, updateEntityNode, getGroundingStatus, searchWikipedia, removeGrounding } from '../lib/api';
+import WikipediaOverlay from './WikipediaOverlay';
 
 const EDGES_PAGE_SIZE = 10;
 
-export default function DetailPanel({ node, edges = [], onClose, onExpand, expanding }) {
-  const [edgesShown, setEdgesShown] = useState(EDGES_PAGE_SIZE);
+const ENTITY_TYPES = [
+  'person', 'organization', 'location', 'event', 'product',
+  'work_of_art', 'temporal', 'concept', 'technology', 'award',
+  'nationality', 'language',
+];
 
-  // Reset pagination when the selected node changes
+export default function DetailPanel({ node, edges = [], onClose, onExpand, expanding, onNodeUpdate }) {
+  const [edgesShown, setEdgesShown] = useState(EDGES_PAGE_SIZE);
+  const [typeDropdownOpen, setTypeDropdownOpen] = useState(false);
+  const [customType, setCustomType] = useState('');
+  const [editingLabel, setEditingLabel] = useState(false);
+  const [labelValue, setLabelValue] = useState('');
+  const [typeSaved, setTypeSaved] = useState(false);
+  const [labelSaved, setLabelSaved] = useState(false);
+
+  // Grounding state
+  const [grounding, setGrounding] = useState(null); // { grounded, wikipedia }
+  const [groundingLoading, setGroundingLoading] = useState(false);
+  const [wikiResults, setWikiResults] = useState(null);
+  const [wikiLoading, setWikiLoading] = useState(false);
+  const [showWikiOverlay, setShowWikiOverlay] = useState(false);
+
+  const labelInputRef = useRef(null);
+  const isEntity = node?.category === 'entity';
+
+  // Reset state when the selected node changes
   const nodeId = node?.id;
   useEffect(() => {
     setEdgesShown(EDGES_PAGE_SIZE);
+    setTypeDropdownOpen(false);
+    setEditingLabel(false);
+    setTypeSaved(false);
+    setLabelSaved(false);
+    setGrounding(null);
+    setShowWikiOverlay(false);
+    setWikiResults(null);
   }, [nodeId]);
+
+  // Fetch grounding status for all nodes
+  useEffect(() => {
+    if (!nodeId) return;
+    let cancelled = false;
+    setGroundingLoading(true);
+    getGroundingStatus(nodeId)
+      .then((data) => { if (!cancelled) setGrounding(data); })
+      .catch(() => { if (!cancelled) setGrounding({ grounded: false, wikipedia: null }); })
+      .finally(() => { if (!cancelled) setGroundingLoading(false); });
+    return () => { cancelled = true; };
+  }, [nodeId]);
+
+  // Focus label input when editing starts
+  useEffect(() => {
+    if (editingLabel && labelInputRef.current) {
+      labelInputRef.current.focus();
+      labelInputRef.current.select();
+    }
+  }, [editingLabel]);
 
   if (!node) return null;
 
@@ -20,8 +71,83 @@ export default function DetailPanel({ node, edges = [], onClose, onExpand, expan
   const paginatedEdges = edges.slice(0, edgesShown);
   const hasMore = edges.length > edgesShown;
 
+  // --- Entity correction handlers ---
+
+  async function handleTypeChange(newType) {
+    setTypeDropdownOpen(false);
+    setCustomType('');
+    if (!newType || newType === node.type) return;
+    const oldType = node.type;
+    // Optimistic update
+    onNodeUpdate?.(node.id, { type: newType, entity_type: newType });
+    setTypeSaved(true);
+    setTimeout(() => setTypeSaved(false), 1500);
+    try {
+      await Promise.all([
+        updateEntityNode(node.id, { entity_type: newType }),
+        createOntologyPattern(node.label, newType, 1.0),
+      ]);
+    } catch (err) {
+      console.error('Type update failed:', err);
+      // Revert on failure
+      onNodeUpdate?.(node.id, { type: oldType, entity_type: oldType });
+    }
+  }
+
+  async function handleLabelSave() {
+    setEditingLabel(false);
+    const newLabel = labelValue.trim();
+    if (!newLabel || newLabel === node.label) return;
+    // Optimistic update — show new label immediately
+    onNodeUpdate?.(node.id, { label: newLabel });
+    setLabelSaved(true);
+    setTimeout(() => setLabelSaved(false), 1500);
+    try {
+      await updateEntityNode(node.id, { label: newLabel });
+      // Create ontology pattern mapping new name to current type
+      await createOntologyPattern(newLabel, node.type, 1.0);
+    } catch (err) {
+      console.error('Label rename failed:', err);
+      // Revert on failure
+      onNodeUpdate?.(node.id, { label: node.label });
+    }
+  }
+
+  async function handleGround() {
+    setWikiLoading(true);
+    setShowWikiOverlay(true);
+    try {
+      const results = await searchWikipedia(node.label);
+      setWikiResults(Array.isArray(results) ? results : []);
+    } catch (err) {
+      console.error('Wikipedia search failed:', err);
+      setWikiResults([]);
+    } finally {
+      setWikiLoading(false);
+    }
+  }
+
+  async function handleUnground() {
+    try {
+      await removeGrounding(node.id);
+      setGrounding({ grounded: false, wikipedia: null });
+    } catch (err) {
+      console.error('Unground failed:', err);
+    }
+  }
+
+  async function handleGroundAccept(article) {
+    setShowWikiOverlay(false);
+    // Update grounding status locally
+    setGrounding({ grounded: true, wikipedia: article });
+    // If Wikipedia suggests a different type, apply it
+    if (article.suggested_type && article.suggested_type !== node.type) {
+      await handleTypeChange(article.suggested_type);
+    }
+  }
+
   return (
-    <div className="w-72 bg-slate-800 border-l border-slate-700 overflow-y-auto shrink-0 flex flex-col">
+    <div className="w-72 h-full bg-slate-800 border-l border-slate-700 overflow-y-auto shrink-0 flex flex-col shadow-2xl">
       <div className="flex items-center justify-between p-3 border-b border-slate-700">
         <span className="text-sm font-medium text-slate-200">Node Details</span>
         <button
@@ -37,20 +163,149 @@ export default function DetailPanel({ node, edges = [], onClose, onExpand, expan
       <div className="p-3 space-y-4 flex-1 overflow-y-auto">
         {/* Header with type badge */}
         <div>
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-4 h-4 rounded-full" style={{ backgroundColor: color }} />
-            <span
-              className="text-xs font-medium px-2 py-0.5 rounded-full capitalize"
-              style={{ backgroundColor: color + '20', color }}
-            >
-              {node.type}
-            </span>
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <div className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: color }} />
+
+            {/* Type badge — clickable for entities */}
+            {isEntity ? (
+              <div className="relative">
+                <button
+                  onClick={() => setTypeDropdownOpen(!typeDropdownOpen)}
+                  className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize cursor-pointer hover:ring-1 hover:ring-white/20 transition-all ${typeSaved ? 'ring-2 ring-green-500' : ''}`}
+                  style={{ backgroundColor: color + '20', color }}
+                  title="Click to change entity type"
+                >
+                  {node.type}
+                  <svg className="w-2.5 h-2.5 inline ml-1 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {/* Type dropdown */}
+                {typeDropdownOpen && (
+                  <div className="absolute top-full left-0 mt-1 z-50 w-40 bg-slate-900 border border-slate-600 rounded-lg shadow-xl overflow-hidden">
+                    <div className="max-h-48 overflow-y-auto">
+                      {ENTITY_TYPES.map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => handleTypeChange(t)}
+                          className={`w-full text-left px-3 py-1.5 text-xs capitalize hover:bg-slate-700 transition-colors ${t === node.type ? 'text-blue-400 font-medium' : 'text-slate-300'}`}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                    {/* Custom type input */}
+                    <div className="border-t border-slate-700 p-2">
+                      <input
+                        type="text"
+                        value={customType}
+                        onChange={(e) => setCustomType(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && customType.trim()) handleTypeChange(customType.trim().toLowerCase()); }}
+                        placeholder="Custom type..."
+                        className="w-full text-xs px-2 py-1 bg-slate-800 border border-slate-600 rounded text-slate-300 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <span
+                className="text-xs font-medium px-2 py-0.5 rounded-full capitalize"
+                style={{ backgroundColor: color + '20', color }}
+              >
+                {node.type}
+              </span>
+            )}
+
             {node.category && node.category !== node.type && (
               <span className="text-xs text-slate-500">({node.category})</span>
             )}
           </div>
-          <h2 className="text-sm font-medium text-slate-100 break-words">{node.label}</h2>
+
+          {/* Label — editable for entities */}
+          {isEntity && editingLabel ? (
+            <input
+              ref={labelInputRef}
+              type="text"
+              value={labelValue}
+              onChange={(e) => setLabelValue(e.target.value)}
+              onBlur={handleLabelSave}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleLabelSave(); if (e.key === 'Escape') setEditingLabel(false); }}
+              className="text-sm font-medium text-slate-100 bg-slate-900 border border-slate-600 rounded px-1.5 py-0.5 w-full focus:outline-none focus:border-blue-500"
+            />
+          ) : (
+            <h2
+              className={`text-sm font-medium text-slate-100 break-words ${isEntity ? 'cursor-pointer hover:bg-slate-700/50 rounded px-1 -mx-1 transition-colors' : ''} ${labelSaved ? 'ring-1 ring-green-500 rounded' : ''}`}
+              onClick={() => {
+                if (isEntity) {
+                  setLabelValue(node.label);
+                  setEditingLabel(true);
+                }
+              }}
+              title={isEntity ? 'Click to rename' : undefined}
+            >
+              {node.label}
+            </h2>
+          )}
         </div>
+
+        {/* Grounding status */}
+        {!groundingLoading && grounding && (
+          <div>
+            {grounding.grounded ? (
+              <div className="flex items-center gap-1.5 text-xs">
+                <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                <span className="text-green-400 font-medium">Grounded</span>
+                {grounding.wikipedia?.url && (
+                  <div className="flex items-center gap-1 ml-auto">
+                    <a
+                      href={grounding.wikipedia.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-400 hover:text-blue-300 transition-colors"
+                      title={grounding.wikipedia.title || 'Wikipedia'}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </a>
+                    <button
+                      onClick={handleUnground}
+                      className="text-red-400/60 hover:text-red-400 transition-colors"
+                      title="Remove grounding"
+                    >
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : isEntity ? (
+              <button
+                onClick={handleGround}
+                disabled={wikiLoading}
+                className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-purple-600/20 text-purple-400 border border-purple-600/30 rounded hover:bg-purple-600/30 disabled:opacity-40 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Ground
+              </button>
+            ) : null}
+          </div>
+        )}
+
+        {/* Wikipedia overlay */}
+        {showWikiOverlay && (
+          <WikipediaOverlay
+            results={wikiResults}
+            loading={wikiLoading}
+            onAccept={handleGroundAccept}
+            onCancel={() => setShowWikiOverlay(false)}
+          />
+        )}
 
         {/* Expand neighbors button */}
         {onExpand && (
@@ -78,7 +333,22 @@ export default function DetailPanel({ node, edges = [], onClose, onExpand, expan
         {/* Content */}
         {node.content && (
           <section>
-            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Content</h3>
+            <div className="flex items-center gap-1.5 mb-1">
+              <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Content</h3>
+              {grounding?.grounded && grounding.wikipedia?.url && (
+                <a
+                  href={grounding.wikipedia.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-400 hover:text-blue-300 transition-colors ml-auto"
+                  title={`Wikipedia: ${grounding.wikipedia.title || ''}`}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </a>
+              )}
+            </div>
             <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap break-words max-h-48 overflow-y-auto bg-slate-900/50 rounded p-2">
               {node.content}
             </p>

@@ -45,11 +45,11 @@ export function getCytoscapeStyles() {
         height: 22,
       },
     },
-    // Dimmed node (filtered out visually)
+    // Filtered-out node — completely hidden (not ghosted)
     {
       selector: 'node.dimmed',
       style: {
-        opacity: 0.15,
+        display: 'none',
       },
     },
     // Neighbor of selected
@@ -67,11 +67,13 @@ export function getCytoscapeStyles() {
       style: {
         width: 1,
         'line-color': '#475569', // slate-600
-        'target-arrow-color': '#475569',
-        'target-arrow-shape': 'triangle',
+        'target-arrow-shape': 'none',
         'curve-style': 'bezier',
         opacity: 0.6,
-        label: 'data(label)',
+        label: (ele) => {
+          const t = ele.data('type') || ele.data('label') || '';
+          return t === 'RELATED_ENTITY' ? '' : t;
+        },
         'font-size': '8px',
         color: '#64748b', // slate-500
         'text-outline-width': 1,
@@ -85,7 +87,6 @@ export function getCytoscapeStyles() {
       style: {
         width: 2,
         'line-color': '#f8fafc',
-        'target-arrow-color': '#f8fafc',
         opacity: 1,
       },
     },
@@ -95,16 +96,15 @@ export function getCytoscapeStyles() {
       style: {
         width: 3,
         'line-color': '#fbbf24',
-        'target-arrow-color': '#fbbf24',
         opacity: 1,
         'z-index': 999,
       },
     },
-    // Dimmed edge
+    // Filtered-out edge — completely hidden
     {
       selector: 'edge.dimmed',
       style: {
-        opacity: 0.08,
+        display: 'none',
       },
     },
   ];
@@ -129,6 +129,45 @@ export function getCytoscapeStyles() {
   styles.push({
     selector: 'node[category="grounding"]',
     style: { 'background-color': SPECIAL_COLORS.grounding, width: 16, height: 16 },
+  });
+
+  // Streaming glow — newly arrived node from live event stream
+  styles.push({
+    selector: 'node.streaming-new',
+    style: {
+      'border-width': 4,
+      'border-color': '#22d3ee', // cyan-400
+      'border-opacity': 1,
+      'overlay-color': '#22d3ee',
+      'overlay-padding': 6,
+      'overlay-opacity': 0.25,
+      'z-index': 1000,
+    },
+  });
+
+  // Streaming glow — newly arrived edge
+  styles.push({
+    selector: 'edge.streaming-new',
+    style: {
+      width: 3,
+      'line-color': '#22d3ee',
+      opacity: 1,
+      'z-index': 1000,
+    },
+  });
+
+  // Grounding flash — entity just linked to Wikipedia provenance
+  styles.push({
+    selector: 'node.grounding-flash',
+    style: {
+      'border-width': 5,
+      'border-color': '#4ade80', // green-400
+      'border-opacity': 1,
+      'overlay-color': '#4ade80',
+      'overlay-padding': 8,
+      'overlay-opacity': 0.3,
+      'z-index': 1000,
+    },
   });
 
   // LOD cluster parent nodes (compound containers)

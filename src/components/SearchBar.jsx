@@ -86,7 +86,7 @@ export default function SearchBar({ elements, onSearch, onNodeSelect }) {
   }, []);
 
   return (
-    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-lg px-4">
+    <div className="absolute bottom-14 left-1/2 -translate-x-1/2 z-50 w-full max-w-lg px-4">
       {/* Results dropdown (above the search bar) */}
       {isFocused && results.length > 0 && (
         <div className="mb-2 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl max-h-60 overflow-y-auto">

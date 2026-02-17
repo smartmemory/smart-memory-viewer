@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { MEMORY_TYPE_SET } from '../lib/graphColors';
+import { saveRecording } from '../lib/eventStore';
 
 const DEFAULT_WS_URL = import.meta.env.VITE_INSIGHTS_WS_URL
   || (import.meta.env.DEV ? 'ws://localhost:9003/events' : 'wss://insights.smartmemory.ai/events');
@@ -19,13 +20,30 @@ export function classifyEvent(raw) {
   // Graph mutations
   if (component === 'graph') {
     if (operation === 'add_node' || operation === 'add_nodes_bulk') {
+      // Skip Wikipedia grounding nodes
+      const nodeId = data?.item_id || memoryId;
+      if (nodeId && nodeId.startsWith('wikipedia:')) return null;
       return { ...base, category: 'node_added', label: `Node "${data?.label || memoryId || 'unknown'}" added`, nodeId: memoryId };
     }
     if (operation === 'add_edge' || operation === 'add_edges_bulk') {
       const src = data?.source_id || data?.source || '';
       const tgt = data?.target_id || data?.target || '';
+      const edgeType = data?.edge_type || 'RELATES_TO';
+      // Convert GROUNDED_IN edge events into grounding flash events
+      if (edgeType === 'GROUNDED_IN' || src.startsWith('wikipedia:') || tgt.startsWith('wikipedia:')) {
+        // Flash the non-wikipedia endpoint (the entity that just got grounded)
+        const groundedNodeId = src.startsWith('wikipedia:') ? tgt : src;
+        // Extract a readable name from the wikipedia node ID (e.g. "wikipedia:ada_lovelace" → "Ada Lovelace")
+        const wikiId = src.startsWith('wikipedia:') ? src : tgt;
+        const wikiName = wikiId.replace('wikipedia:', '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        return { ...base, category: 'grounding_flash', label: `Grounded "${wikiName}"`, nodeId: groundedNodeId };
+      }
       const edgeId = data?.edge_id || (src && tgt ? `${src}->${tgt}` : null);
-      return { ...base, category: 'edge_added', label: `Edge "${data?.edge_type || 'RELATES_TO'}"`, nodeId: src || null, edgeId };
+      return { ...base, category: 'edge_added', label: `Edge "${edgeType}"`, nodeId: src || null, edgeId };
+    }
+    if (operation === 'clear_all') {
+      const nuclear = data?.nuclear ? ' (nuclear)' : '';
+      return { ...base, category: 'graph_cleared', label: `Graph cleared${nuclear}`, nodeId: null };
     }
     if (operation?.startsWith('delete')) {
       return { ...base, category: 'node_removed', label: `Removed ${memoryId || 'element'}`, nodeId: memoryId };
@@ -61,12 +79,18 @@ export function classifyEvent(raw) {
  */
 export function eventToNodeElement(data) {
   if (!data) return null;
-  const id = data.memory_id || data.item_id || data.node_id;
+  const id = data.memory_id || data.item_id || data.node_id || data.id;
   if (!id) return null;
-  const type = data.memory_type || data.type || 'semantic';
+  // Skip internal nodes (version tracker artifacts, Wikipedia grounding nodes)
+  if (id.startsWith('version_') || id.startsWith('wikipedia:')) return null;
   const label = data.label || data.title || data.content?.substring(0, 40) || id.substring(0, 12);
-  const category = MEMORY_TYPE_SET.has(type) ? 'memory' : 'entity';
-  return { group: 'nodes', data: { id, label, type, category, content: data.content || '' } };
+  // Determine category: explicit node_category wins, then check entity_type, then fall back to memory_type
+  const isEntity = data.node_category === 'entity' || !!data.entity_type;
+  const type = isEntity
+    ? (data.entity_type || data.type || 'concept')
+    : (data.memory_type || data.type || 'semantic');
+  const category = isEntity ? 'entity' : (MEMORY_TYPE_SET.has(type) ? 'memory' : 'entity');
+  return { group: 'nodes', data: { id, label, type, category, content: data.content || '', parentId: data.parent_memory_id || null } };
 }
 
 /**
@@ -78,6 +102,10 @@ export function eventToEdgeElement(data) {
   const tgt = data.target_id || data.target;
   if (!src || !tgt) return null;
   const edgeType = data.edge_type || data.link_type || 'RELATES_TO';
+  // Skip Wikipedia grounding edges — handled as metadata, not visible graph elements
+  if (edgeType === 'GROUNDED_IN') return null;
+  // Skip edges to/from Wikipedia nodes
+  if (src.startsWith('wikipedia:') || tgt.startsWith('wikipedia:')) return null;
   return {
     group: 'edges',
     data: { id: `${src}->${tgt}:${edgeType}`, source: src, target: tgt, label: edgeType, type: edgeType },
@@ -85,27 +113,153 @@ export function eventToEdgeElement(data) {
 }
 
 /**
+ * Normalize an entity label for frontend deduplication.
+ * Strips articles, lowercases, collapses whitespace.
+ */
+function normalizeLabel(label) {
+  if (!label) return '';
+  return label
+    .toLowerCase()
+    .replace(/^(the|a|an)\s+/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Reciprocal edge pairs that should be merged into a single bidirectional RELATED_ENTITY edge
+const RECIPROCAL_PAIRS = new Set(['CONTAINS_ENTITY', 'MENTIONED_IN']);
+
+/**
+ * Coalesce duplicate entity nodes by normalized label, remap edges,
+ * and merge reciprocal edge pairs (CONTAINS_ENTITY + MENTIONED_IN → RELATED_ENTITY).
+ * Mutates canonicalMap in-place for cross-batch persistence.
+ *
+ * @param {Array} nodes - Cytoscape node elements
+ * @param {Array} edges - Cytoscape edge elements
+ * @param {Object} canonicalMap - normalizedLabel -> canonicalNodeId (mutable, persists across calls)
+ * @returns {{ nodes, edges, idRemap }}
+ */
+export function coalesceElements(nodes, edges, canonicalMap = {}) {
+  const idRemap = {};
+  const dedupedNodes = [];
+
+  for (const node of nodes) {
+    const { id, label, category } = node.data;
+    // Only coalesce entity nodes, not memory nodes
+    if (category !== 'entity') {
+      dedupedNodes.push(node);
+      continue;
+    }
+    const key = normalizeLabel(label);
+    if (!key) {
+      dedupedNodes.push(node);
+      continue;
+    }
+    if (canonicalMap[key] && canonicalMap[key] !== id) {
+      idRemap[id] = canonicalMap[key];
+    } else {
+      canonicalMap[key] = id;
+      dedupedNodes.push(node);
+    }
+  }
+
+  // First pass: remap endpoints and collect edges
+  const rawEdges = [];
+  for (const edge of edges) {
+    const src = idRemap[edge.data.source] || edge.data.source;
+    const tgt = idRemap[edge.data.target] || edge.data.target;
+    if (src === tgt) continue; // self-loop from merging
+    rawEdges.push({
+      ...edge,
+      data: { ...edge.data, source: src, target: tgt },
+    });
+  }
+
+  // Second pass: merge reciprocal CONTAINS_ENTITY + MENTIONED_IN into RELATED_ENTITY
+  // Track node pairs that have reciprocal edges
+  const reciprocalPairs = new Set(); // "nodeA||nodeB" (sorted)
+  const reciprocalEdges = []; // edges that are part of a reciprocal pair
+  const nonReciprocalEdges = [];
+
+  for (const edge of rawEdges) {
+    if (RECIPROCAL_PAIRS.has(edge.data.type)) {
+      const pairKey = [edge.data.source, edge.data.target].sort().join('||');
+      reciprocalEdges.push({ edge, pairKey });
+      reciprocalPairs.add(pairKey);
+    } else {
+      nonReciprocalEdges.push(edge);
+    }
+  }
+
+  // Emit one RELATED_ENTITY edge per pair, drop duplicates
+  const seenEdges = new Set();
+  const remappedEdges = [];
+
+  for (const pairKey of reciprocalPairs) {
+    const [a, b] = pairKey.split('||');
+    const edgeKey = `${a}->${b}:RELATED_ENTITY`;
+    if (seenEdges.has(edgeKey)) continue;
+    seenEdges.add(edgeKey);
+    remappedEdges.push({
+      group: 'edges',
+      data: { id: edgeKey, source: a, target: b, label: 'RELATED_ENTITY', type: 'RELATED_ENTITY' },
+    });
+  }
+
+  // Also emit unpaired reciprocal edges as-is (e.g. only CONTAINS_ENTITY without MENTIONED_IN)
+  for (const { edge, pairKey } of reciprocalEdges) {
+    if (reciprocalPairs.has(pairKey)) continue; // already merged
+    const edgeKey = `${edge.data.source}->${edge.data.target}:${edge.data.type}`;
+    if (seenEdges.has(edgeKey)) continue;
+    seenEdges.add(edgeKey);
+    remappedEdges.push({
+      ...edge,
+      data: { ...edge.data, id: edgeKey },
+    });
+  }
+
+  // Non-reciprocal edges pass through with dedup
+  for (const edge of nonReciprocalEdges) {
+    const edgeKey = `${edge.data.source}->${edge.data.target}:${edge.data.type}`;
+    if (seenEdges.has(edgeKey)) continue;
+    seenEdges.add(edgeKey);
+    remappedEdges.push({
+      ...edge,
+      data: { ...edge.data, id: edgeKey },
+    });
+  }
+
+  return { nodes: dedupedNodes, edges: remappedEdges, idRemap };
+}
+
+/**
  * React hook for real-time graph event streaming via Insights WebSocket.
  *
  * @param {Object} options
- * @param {string} [options.wsUrl] - WebSocket URL (default: Insights at :9002/events)
+ * @param {string} [options.wsUrl] - WebSocket URL (default: Insights at :9003/events)
  * @param {boolean} [options.enabled=true] - Toggle connection
  * @param {number} [options.bufferSize=100] - Ring buffer capacity
- * @param {Function} [options.onNodeAdded] - Callback with array of Cytoscape node elements (batched)
- * @param {Function} [options.onEdgeAdded] - Callback with array of Cytoscape edge elements (batched)
+ * @param {Function} [options.onElementAdded] - Callback with single Cytoscape element (node or edge), called in backend order
  * @param {Function} [options.onSearchHighlight] - Callback with array of matching node IDs
  * @param {Function} [options.onPipelineProgress] - Callback with { nodeId, stage, durationMs }
  */
 export function useGraphStream(options = {}) {
   const {
     wsUrl = DEFAULT_WS_URL,
+    token,
     enabled = true,
     bufferSize = 100,
-    onNodeAdded,
-    onEdgeAdded,
+    onElementAdded,
     onSearchHighlight,
     onPipelineProgress,
+    onGraphCleared,
+    onReconnect,
+    onGroundingFlash,
   } = options;
+
+  // Build authenticated WS URL
+  const authenticatedWsUrl = token
+    ? `${wsUrl}${wsUrl.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`
+    : wsUrl;
 
   const [status, setStatus] = useState('disconnected');
   const [operations, setOperations] = useState([]);
@@ -114,8 +268,8 @@ export function useGraphStream(options = {}) {
   const [isPaused, setIsPaused] = useState(false);
 
   // Refs for callbacks (avoid stale closures)
-  const callbacksRef = useRef({ onNodeAdded, onEdgeAdded, onSearchHighlight, onPipelineProgress });
-  callbacksRef.current = { onNodeAdded, onEdgeAdded, onSearchHighlight, onPipelineProgress };
+  const callbacksRef = useRef({ onElementAdded, onSearchHighlight, onPipelineProgress, onGraphCleared, onReconnect, onGroundingFlash });
+  callbacksRef.current = { onElementAdded, onSearchHighlight, onPipelineProgress, onGraphCleared, onReconnect, onGroundingFlash };
 
   // Batch window: collect events, flush every 200ms
   const batchRef = useRef([]);
@@ -125,6 +279,13 @@ export function useGraphStream(options = {}) {
 
   // Pending graph elements — accumulates WS node/edge elements for replay after refresh
   const pendingElementsRef = useRef([]);
+
+  // Recording accumulator — groups graph elements by trace ID for offline replay
+  const recordingBufferRef = useRef({}); // { [traceId]: { elements: [], label, timer } }
+  const RECORDING_FLUSH_DELAY = 5000; // Save recording 5s after last event for a trace
+
+  // Entity coalescing — persists across batches so cross-batch duplicates are caught
+  const canonicalMapRef = useRef({});
 
   const flushBatch = useCallback(() => {
     if (unmountedRef.current || isPausedRef.current) return; // guard against post-unmount or post-pause flush
@@ -151,33 +312,128 @@ export function useGraphStream(options = {}) {
 
     // Fire callbacks for graph updates
     const cbs = callbacksRef.current;
-    const nodesToAdd = [];
-    const edgesToAdd = [];
     const searchIds = [];
 
+    // Build interleaved element list preserving backend order (node → edges → node → edges ...)
+    const rawElements = [];
+    let graphCleared = false;
     for (const op of batch) {
-      if (op.category === 'node_added') {
+      if (op.category === 'graph_cleared') {
+        graphCleared = true;
+      } else if (op.category === 'node_added') {
         const el = eventToNodeElement(op.meta?.data);
-        if (el) nodesToAdd.push(el);
+        if (el) rawElements.push(el);
       } else if (op.category === 'edge_added') {
         const el = eventToEdgeElement(op.meta?.data);
-        if (el) edgesToAdd.push(el);
+        if (el) rawElements.push(el);
       } else if (op.category === 'search_highlight' && op.matchIds?.length) {
         searchIds.push(...op.matchIds);
       } else if (op.category === 'pipeline_stage' && cbs.onPipelineProgress) {
         cbs.onPipelineProgress({ nodeId: op.nodeId, stage: op.meta?.operation, durationMs: op.meta?.duration_ms });
+      } else if (op.category === 'grounding_flash' && op.nodeId && cbs.onGroundingFlash) {
+        cbs.onGroundingFlash(op.nodeId);
       }
     }
 
-    // Accumulate graph elements for replay after refresh (deduped on drain)
-    pendingElementsRef.current.push(...nodesToAdd, ...edgesToAdd);
-
-    // Call addElements once per batch — not per element
-    if (nodesToAdd.length > 0 && cbs.onNodeAdded) {
-      cbs.onNodeAdded(nodesToAdd);
+    // If a clear event arrived, fire the callback and skip adding elements
+    if (graphCleared && cbs.onGraphCleared) {
+      pendingElementsRef.current = [];
+      canonicalMapRef.current = {};
+      cbs.onGraphCleared();
+      return;
     }
-    if (edgesToAdd.length > 0 && cbs.onEdgeAdded) {
-      cbs.onEdgeAdded(edgesToAdd);
+
+    // Coalesce duplicate entity nodes and merge reciprocal edges,
+    // preserving interleaved order for progressive drip-feed
+    const rawNodes = rawElements.filter(el => el.group === 'nodes');
+    const rawEdges = rawElements.filter(el => el.group === 'edges');
+    const { nodes: coalescedNodes, edges: coalescedEdges, idRemap } = coalesceElements(
+      rawNodes, rawEdges, canonicalMapRef.current
+    );
+
+    // Rebuild interleaved order: walk rawElements, emit coalesced version (skip remapped dupes)
+    const coalescedNodeIds = new Set(coalescedNodes.map(n => n.data.id));
+    const coalescedEdgeIds = new Set(coalescedEdges.map(e => e.data.id));
+    const coalescedNodeMap = Object.fromEntries(coalescedNodes.map(n => [n.data.id, n]));
+    const coalescedEdgeMap = Object.fromEntries(coalescedEdges.map(e => [e.data.id, e]));
+    const emittedIds = new Set();
+    const interleavedElements = [];
+
+    for (const raw of rawElements) {
+      if (raw.group === 'nodes') {
+        // Skip nodes that were remapped (duplicates)
+        if (idRemap[raw.data.id]) continue;
+        if (coalescedNodeIds.has(raw.data.id) && !emittedIds.has(raw.data.id)) {
+          interleavedElements.push(coalescedNodeMap[raw.data.id]);
+          emittedIds.add(raw.data.id);
+        }
+      } else {
+        // Edge: find its coalesced version by remapped source/target
+        const src = idRemap[raw.data.source] || raw.data.source;
+        const tgt = idRemap[raw.data.target] || raw.data.target;
+        // Look for the coalesced edge (may have been merged to RELATED_ENTITY)
+        for (const ce of coalescedEdges) {
+          if (emittedIds.has(ce.data.id)) continue;
+          const eSrc = ce.data.source;
+          const eTgt = ce.data.target;
+          // Match by endpoints (order-independent for merged edges)
+          if ((eSrc === src && eTgt === tgt) || (eSrc === tgt && eTgt === src)) {
+            interleavedElements.push(ce);
+            emittedIds.add(ce.data.id);
+            break;
+          }
+        }
+      }
+    }
+    // Catch any coalesced edges not yet emitted (e.g. merged RELATED_ENTITY from 2 raw edges)
+    for (const ce of coalescedEdges) {
+      if (!emittedIds.has(ce.data.id)) {
+        interleavedElements.push(ce);
+        emittedIds.add(ce.data.id);
+      }
+    }
+
+    // Accumulate for replay after refresh
+    pendingElementsRef.current.push(...interleavedElements);
+
+    // Record for offline replay (last-session only, overwritten each ingest)
+    const batchKey = batch[0]?.traceId || `batch-${Date.now()}`;
+    for (const op of batch) {
+      const el = op.category === 'node_added' ? eventToNodeElement(op.meta?.data)
+        : op.category === 'edge_added' ? eventToEdgeElement(op.meta?.data)
+        : null;
+      if (!el) continue;
+
+      const groupKey = op.traceId || batchKey;
+      const buf = recordingBufferRef.current;
+      if (!buf[groupKey]) {
+        buf[groupKey] = { elements: [], label: '', timer: null };
+      }
+      const rec = buf[groupKey];
+      rec.elements.push({ category: op.category, element: el, timestamp: op.timestamp });
+      if (!rec.label && op.category === 'node_added' && el.data?.content) {
+        rec.label = el.data.content.substring(0, 60);
+      }
+      if (rec.timer) clearTimeout(rec.timer);
+      const capturedKey = groupKey;
+      rec.timer = setTimeout(() => {
+        const finalRec = buf[capturedKey];
+        if (finalRec && finalRec.elements.length > 0) {
+          saveRecording({
+            traceId: capturedKey,
+            label: finalRec.label || `Recording ${new Date().toLocaleTimeString()}`,
+            events: finalRec.elements,
+          });
+        }
+        delete buf[capturedKey];
+      }, RECORDING_FLUSH_DELAY);
+    }
+
+    // Dispatch interleaved elements one at a time to preserve backend order
+    if (interleavedElements.length > 0 && cbs.onElementAdded) {
+      for (const el of interleavedElements) {
+        cbs.onElementAdded(el);
+      }
     }
     if (searchIds.length > 0 && cbs.onSearchHighlight) {
       cbs.onSearchHighlight([...new Set(searchIds)]);
@@ -198,13 +454,16 @@ export function useGraphStream(options = {}) {
     let reconnectTimer = null;
     let reconnectDelay = 1000;
     let unmounted = false;
+    let hasConnectedOnce = false;
+    let failedAttempts = 0;
+    const MAX_RETRIES = 3; // Stop retrying after 3 failures if never connected
 
     function connect() {
       if (unmounted) return;
       setStatus('connecting');
 
       try {
-        ws = new WebSocket(wsUrl);
+        ws = new WebSocket(authenticatedWsUrl);
       } catch {
         setStatus('disconnected');
         scheduleReconnect();
@@ -214,7 +473,12 @@ export function useGraphStream(options = {}) {
       ws.onopen = () => {
         if (unmounted) return;
         setStatus('connected');
-        reconnectDelay = 1000; // reset backoff
+        reconnectDelay = 1000;
+        failedAttempts = 0;
+        if (hasConnectedOnce && callbacksRef.current.onReconnect) {
+          callbacksRef.current.onReconnect();
+        }
+        hasConnectedOnce = true;
       };
 
       ws.onmessage = (event) => {
@@ -226,7 +490,6 @@ export function useGraphStream(options = {}) {
 
           batchRef.current.push(classified);
 
-          // Start batch timer if not running
           if (!batchTimerRef.current) {
             batchTimerRef.current = setTimeout(() => {
               batchTimerRef.current = null;
@@ -241,6 +504,12 @@ export function useGraphStream(options = {}) {
       ws.onclose = () => {
         if (unmounted) return;
         setStatus('disconnected');
+        failedAttempts++;
+        // Give up if service was never reachable (avoids infinite reconnect to dead port)
+        if (!hasConnectedOnce && failedAttempts >= MAX_RETRIES) {
+          console.debug(`[GraphStream] Insights WS unreachable after ${MAX_RETRIES} attempts, giving up`);
+          return;
+        }
         scheduleReconnect();
       };
 
@@ -272,7 +541,7 @@ export function useGraphStream(options = {}) {
         ws.close();
       }
     };
-  }, [wsUrl, enabled, flushBatch]);
+  }, [authenticatedWsUrl, enabled, flushBatch]);
 
   const pause = useCallback(() => {
     isPausedRef.current = true;
@@ -297,5 +566,42 @@ export function useGraphStream(options = {}) {
     return elements;
   }, []);
 
-  return { status, operations, opsPerSecond, isPaused, pause, resume, drainPending };
+  // Clear operations bar (called at the start of a new ingest run)
+  const clearOperations = useCallback(() => {
+    setOperations([]);
+    setOpsPerSecond(0);
+    opsTimestampsRef.current = [];
+  }, []);
+
+  // Push a synthetic operation into the bar (used by replay to create breadcrumbs)
+  const pushOperation = useCallback((op) => {
+    setOperations((prev) => {
+      const next = [op, ...prev];
+      return next.length > bufferSize ? next.slice(0, bufferSize) : next;
+    });
+  }, [bufferSize]);
+
+  // Reconstruct coalesced graph state at a given operation (for timeline scrubbing)
+  const getStateUpTo = useCallback((opId) => {
+    const idx = operations.findIndex(o => o.id === opId);
+    if (idx === -1) return null;
+    // operations is newest-first: slice(idx) gives this event + all older events
+    const relevant = operations.slice(idx);
+    const nodes = [];
+    const edges = [];
+    for (const op of relevant) {
+      if (op.category === 'node_added') {
+        const el = eventToNodeElement(op.meta?.data);
+        if (el) nodes.push(el);
+      } else if (op.category === 'edge_added') {
+        const el = eventToEdgeElement(op.meta?.data);
+        if (el) edges.push(el);
+      }
+    }
+    // Fresh coalescing (independent of live canonicalMap — scrubbing is a snapshot)
+    const { nodes: cn, edges: ce } = coalesceElements(nodes, edges, {});
+    return [...cn, ...ce];
+  }, [operations]);
+
+  return { status, operations, opsPerSecond, isPaused, pause, resume, drainPending, clearOperations, pushOperation, getStateUpTo, recordingBufferRef };
 }

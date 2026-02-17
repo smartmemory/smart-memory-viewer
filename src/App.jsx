@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import GraphExplorer from './components/GraphExplorer';
 import { setAuth } from './lib/api';
+import { useConnectionStatus } from './hooks/useConnectionStatus';
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:9001' : 'https://api.smartmemory.ai');
 
@@ -8,6 +9,7 @@ function App() {
   const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const connection = useConnectionStatus();
 
   useEffect(() => {
     // Check URL params for OAuth callback (token + team from API's /auth/google/callback)
@@ -60,14 +62,21 @@ function App() {
           if (res.ok) {
             setAuthenticated(true);
           } else if (res.status === 401 || res.status === 403) {
+            // Token is actually invalid — clear and force re-login
             localStorage.removeItem('sm_token');
             localStorage.removeItem('sm_team_id');
             setError('Session expired — please sign in again');
           } else {
-            setError('API unavailable');
+            // Server error (5xx) — trust stored token, show reconnecting bar
+            setAuthenticated(true);
+            connection.markDisconnected();
           }
         })
-        .catch(() => setError('Cannot reach SmartMemory API'))
+        .catch(() => {
+          // Network error / API unreachable — trust stored token, show reconnecting bar
+          setAuthenticated(true);
+          connection.markDisconnected();
+        })
         .finally(() => setLoading(false));
     } else {
       setLoading(false);
@@ -95,7 +104,17 @@ function App() {
     window.location.reload();
   };
 
-  return <GraphExplorer onLogout={handleLogout} />;
+  return (
+    <>
+      {!connection.connected && (
+        <div className="fixed top-0 left-0 right-0 z-[100] bg-red-900/90 border-b border-red-700 px-4 py-1.5 flex items-center justify-center gap-2 text-red-200 text-xs">
+          <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse" />
+          API unreachable — reconnecting{connection.checking ? '...' : ''}
+        </div>
+      )}
+      <GraphExplorer onLogout={handleLogout} />
+    </>
+  );
 }
 
 function LoginScreen({ error: initialError }) {

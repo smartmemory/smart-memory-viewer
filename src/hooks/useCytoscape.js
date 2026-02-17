@@ -19,6 +19,18 @@ export function useCytoscape(containerRef) {
   const [containerReady, setContainerReady] = useState(false);
   const [cyReady, setCyReady] = useState(false);
 
+  // Autofit: when enabled, cy.fit() runs on every container resize
+  const [autoFit, setAutoFit] = useState(true);
+  const autoFitRef = useRef(true);
+  useEffect(() => { autoFitRef.current = autoFit; }, [autoFit]);
+
+  // Stable ref for event callbacks — avoids re-registering events on every render
+  const onNodeClickRef = useRef(null);
+  const onNodeDblClickRef = useRef(null);
+  const onNodeHoverRef = useRef(null);
+  const onNodeHoverOutRef = useRef(null);
+  const onBgClickRef = useRef(null);
+
   // Use a ref callback to detect when the container element mounts
   const setContainerRef = useCallback((node) => {
     containerRef.current = node;
@@ -50,10 +62,56 @@ export function useCytoscape(containerRef) {
       autounselectify: false,
     });
 
+    // Register events immediately — they delegate through refs so
+    // the actual callback can be updated without re-registering.
+    cy.on('tap', 'node', (evt) => {
+      const node = evt.target;
+      if (node !== cy && node.isNode() && onNodeClickRef.current) {
+        onNodeClickRef.current(node.data());
+      }
+    });
+    cy.on('dbltap', 'node', (evt) => {
+      const node = evt.target;
+      if (node !== cy && node.isNode() && onNodeDblClickRef.current) {
+        onNodeDblClickRef.current(node.data());
+      }
+    });
+    cy.on('mouseover', 'node', (evt) => {
+      const node = evt.target;
+      if (node !== cy && node.isNode() && onNodeHoverRef.current) {
+        const pos = evt.renderedPosition || evt.position;
+        onNodeHoverRef.current(node.data(), pos);
+      }
+    });
+    cy.on('mouseout', 'node', () => {
+      onNodeHoverOutRef.current?.();
+    });
+    cy.on('tap', (evt) => {
+      if (evt.target === cy) {
+        cy.elements().unselect();
+        cy.elements().removeClass('neighbor');
+        onBgClickRef.current?.();
+      }
+    });
+
+    // Watch container resizes — when the detail panel opens/closes, the container
+    // changes size and Cytoscape's internal hit-testing coordinates go stale.
+    // cy.resize() forces Cytoscape to recalculate its viewport dimensions.
+    // When autoFit is on, also fit the graph to the new viewport.
+    const resizeObserver = new ResizeObserver(() => {
+      cy.resize();
+      if (autoFitRef.current && cy.nodes().length > 0) {
+        cy.fit(cy.elements(':visible'), 50);
+      }
+    });
+    resizeObserver.observe(container);
+
+    console.log('[useCytoscape] Cytoscape initialized, tap handlers registered');
     cyRef.current = cy;
     setCyReady(true);
 
     return () => {
+      resizeObserver.disconnect();
       cy.destroy();
       cyRef.current = null;
       setCyReady(false);
@@ -93,7 +151,7 @@ export function useCytoscape(containerRef) {
         gravity: 0.25,
         numIter: 2500,
         tile: true,
-        randomize: true,
+        randomize: shouldAnimate,
       },
       dagre: {
         name: 'dagre',
@@ -144,13 +202,14 @@ export function useCytoscape(containerRef) {
   }, []);
 
   // Highlight/dim for filtering (nodes by type, edges by type + endpoints)
-  // When cascade=true, nodes with no visible edges are also dimmed
+  // When cascade=true, filtering a relation hides its target nodes (not sources)
   const applyFilter = useCallback((visibleNodeIds, visibleEdgeTypes, cascade = true) => {
     const cy = cyRef.current;
     if (!cy) return;
     cy.batch(() => {
-      // Pass 1: determine which edges are visible
+      // Pass 1: determine which edges are visible, track targets of filtered edges
       const nodesWithVisibleEdge = new Set();
+      const targetsOfFilteredEdges = new Set();
       cy.edges().forEach((edge) => {
         const srcTypeOk = visibleNodeIds.has(edge.source().id());
         const tgtTypeOk = visibleNodeIds.has(edge.target().id());
@@ -161,6 +220,10 @@ export function useCytoscape(containerRef) {
           nodesWithVisibleEdge.add(edge.target().id());
         } else {
           edge.addClass('dimmed');
+          // Track targets of edges filtered by relation type (not by node type)
+          if (srcTypeOk && tgtTypeOk && !edgeTypeOk) {
+            targetsOfFilteredEdges.add(edge.target().id());
+          }
         }
       });
 
@@ -175,12 +238,13 @@ export function useCytoscape(containerRef) {
           node.removeClass('dimmed');
           return;
         }
-        // With cascade: also require at least one visible edge (unless isolated)
-        const hasAnyEdge = node.connectedEdges().length > 0;
-        if (!hasAnyEdge || nodesWithVisibleEdge.has(node.id())) {
-          node.removeClass('dimmed');
-        } else {
+        // With cascade: hide targets of filtered relations that have no other visible edges
+        const isTargetOfFiltered = targetsOfFilteredEdges.has(node.id());
+        const hasVisibleEdge = nodesWithVisibleEdge.has(node.id());
+        if (isTargetOfFiltered && !hasVisibleEdge) {
           node.addClass('dimmed');
+        } else {
+          node.removeClass('dimmed');
         }
       });
     });
@@ -315,6 +379,13 @@ export function useCytoscape(containerRef) {
     });
   }, [removeClustering]);
 
+  // Setters for event callbacks — called by consumer to wire up handlers
+  const setOnNodeClick = useCallback((fn) => { onNodeClickRef.current = fn; }, []);
+  const setOnNodeDblClick = useCallback((fn) => { onNodeDblClickRef.current = fn; }, []);
+  const setOnNodeHover = useCallback((fn) => { onNodeHoverRef.current = fn; }, []);
+  const setOnNodeHoverOut = useCallback((fn) => { onNodeHoverOutRef.current = fn; }, []);
+  const setOnBgClick = useCallback((fn) => { onBgClickRef.current = fn; }, []);
+
   return {
     cy: cyRef,
     ready: cyReady,
@@ -332,5 +403,12 @@ export function useCytoscape(containerRef) {
     getConnectedEdges,
     applyClustering,
     removeClustering,
+    setOnNodeClick,
+    setOnNodeDblClick,
+    setOnNodeHover,
+    setOnNodeHoverOut,
+    setOnBgClick,
+    autoFit,
+    setAutoFit,
   };
 }
