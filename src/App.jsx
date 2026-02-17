@@ -119,6 +119,7 @@ function App() {
         adapter={adapter}
         wsUrl={WS_URL}
         wsToken={authState.token}
+        className="h-screen w-screen"
       />
     </>
   );
