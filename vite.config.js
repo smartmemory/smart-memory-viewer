@@ -57,8 +57,13 @@ export default defineConfig(({ mode }) => ({
       '@': path.resolve(__dirname, './src'),
       '@contracts': path.resolve(__dirname, '../contracts'),
     },
+    dedupe: ['react', 'react-dom', 'cytoscape'],
+    preserveSymlinks: false,
+  },
+  optimizeDeps: {
+    include: ['cytoscape', 'cytoscape-cose-bilkent', 'cytoscape-dagre'],
   },
   server: {
-    port: 5177,
+    port: 5178,
   },
 }))

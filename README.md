@@ -1,6 +1,6 @@
 # SmartMemory Graph Viewer
 
-Standalone knowledge graph viewer for SmartMemory. Visualize memories, entities, and their relationships in an interactive Cytoscape.js canvas.
+Standalone knowledge graph viewer for SmartMemory. Thin auth shell that delegates all graph visualization to `@smartmemory/graph`.
 
 ## Features
 
@@ -8,20 +8,21 @@ Standalone knowledge graph viewer for SmartMemory. Visualize memories, entities,
 - **Type filtering** — Toggle memory types and entity types with color-coded checkboxes
 - **Search** — Fuzzy search across node labels with keyboard shortcut (Cmd/Ctrl+K)
 - **Detail panel** — Click any node to see content, metadata, confidence, and timestamps
+- **Entity corrections** — Rename entities, retype, ground to Wikipedia
 - **Path finder** — Select two nodes and find the shortest path between them
+- **Real-time streaming** — WebSocket events with drip-feed animation
 - **Export** — Download graph as PNG (2x resolution) or SVG
 - **PWA** — Installable with offline caching via Workbox
-- **SSO auth** — Authenticates via SmartMemory Web SSO or API key fallback
 
 ## Quick Start
 
 ```bash
-# Prerequisites: Node.js 20.19+, smart-memory-sdk-js checked out alongside
+# Prerequisites: Node.js 20.19+
 npm install
 npm run dev
 ```
 
-Opens at [http://localhost:5177](http://localhost:5177).
+Opens at [http://localhost:5178](http://localhost:5178).
 
 ## Environment
 
@@ -29,16 +30,16 @@ Copy `.env.example` to `.env` and configure:
 
 ```bash
 VITE_API_URL=http://localhost:9001      # SmartMemory API
-VITE_SSO_URL=http://localhost:5173      # SmartMemory Web (SSO redirect)
+VITE_WS_URL=ws://localhost:9001/ws/insights  # WebSocket for streaming
 ```
 
-Production defaults to `https://api.smartmemory.ai` and `https://www.smartmemory.ai`.
+Production defaults to `https://api.smartmemory.ai` and `wss://api.smartmemory.ai/ws/insights`.
 
 ## Scripts
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Dev server on port 5177 |
+| `npm run dev` | Dev server on port 5178 |
 | `npm run build` | Production build to `dist/` |
 | `npm run preview` | Preview production build |
 | `npm run lint` | Run ESLint |
@@ -47,39 +48,24 @@ Production defaults to `https://api.smartmemory.ai` and `https://www.smartmemory
 
 ```
 src/
-├── App.jsx                 # Auth flow + root
-├── main.jsx                # React entry
-├── index.css               # TailwindCSS v4
-├── components/
-│   ├── GraphExplorer.jsx   # Main layout orchestrator
-│   ├── CytoscapeCanvas.jsx # Canvas wrapper
-│   ├── Toolbar.jsx         # Layout, zoom, export controls
-│   ├── FilterPanel.jsx     # Type filter sidebar
-│   ├── DetailPanel.jsx     # Node detail sidebar
-│   └── SearchBar.jsx       # Floating search
-├── hooks/
-│   ├── useCytoscape.js     # Cytoscape instance + API
-│   ├── useGraphData.js     # Data fetching + transform
-│   └── useGraphFilters.js  # Filter state management
-└── lib/
-    ├── api.js              # SmartMemory API client
-    ├── graphColors.js      # Node colors from contracts
-    ├── cytoscapeStyles.js  # Cytoscape stylesheet
-    └── export.js           # PNG/SVG export
+├── App.jsx       # Auth flow + GraphExplorer with adapter
+├── main.jsx      # React entry
+└── index.css     # TailwindCSS v4
 ```
+
+All graph visualization code lives in `@smartmemory/graph` (see `../smart-memory-graph/`). The viewer creates a `fetchAdapter` with auth credentials and passes it to `<GraphExplorer>`.
 
 ## Dependencies
 
-- **@smartmemory/sdk-js** — Auth and API (linked via `file:../smart-memory-sdk-js`)
-- **cytoscape** — Graph rendering engine
-- **cytoscape-cose-bilkent** — Force-directed layout
-- **cytoscape-dagre** — Hierarchical layout
+- **@smartmemory/graph** — Shared graph package (linked via `file:../smart-memory-graph`)
+- **cytoscape** — Graph rendering engine (also in graph package, deduped)
 - **tailwindcss v4** — Utility CSS
 - **vite-plugin-pwa** — Service worker + manifest
 
 ## Related
 
-- [Design doc](../smart-memory-docs/docs/plans/2026-02-14-vis-graph-1-design.md)
-- [SmartMemory Roadmap](../smart-memory-docs/docs/ROADMAP.md) — VIS-GRAPH-1
+- [Graph Package README](../smart-memory-graph/README.md)
+- [VIS-GRAPH-4 Design](../smart-memory-docs/docs/features/VIS-GRAPH-4/design.md)
+- [SmartMemory Roadmap](../smart-memory-docs/docs/ROADMAP.md)
 - [Knowledge Graph API](../smart-memory-docs/docs/features/knowledge-graph.md)
 - [Graph Colors Contract](../contracts/graph-colors.json)

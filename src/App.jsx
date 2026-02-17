@@ -1,15 +1,18 @@
 import { useState, useEffect } from 'react';
-import GraphExplorer from './components/GraphExplorer';
-import { setAuth } from './lib/api';
-import { useConnectionStatus } from './hooks/useConnectionStatus';
+import { GraphExplorer, createFetchAdapter, useConnectionStatus } from '@smartmemory/graph';
+import '@smartmemory/graph/src/graph.css';
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:9001' : 'https://api.smartmemory.ai');
+const WS_URL = import.meta.env.VITE_WS_URL || (import.meta.env.DEV ? 'ws://localhost:9001/ws/insights' : 'wss://api.smartmemory.ai/ws/insights');
 
 function App() {
   const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const connection = useConnectionStatus();
+  const [authState, setAuthState] = useState({ token: null, teamId: null });
+  const connection = useConnectionStatus({
+    healthUrl: `${API_URL}/health`,
+  });
 
   useEffect(() => {
     // Check URL params for OAuth callback (token + team from API's /auth/google/callback)
@@ -18,12 +21,10 @@ function App() {
 
     if (callbackToken) {
       localStorage.setItem('sm_token', callbackToken);
-      // Grab team from callback params (set by /auth/google/callback)
       const callbackTeam = params.get('team');
       if (callbackTeam) {
         localStorage.setItem('sm_team_id', callbackTeam);
       } else {
-        // Fallback: derive default team from JWT tenant_id
         try {
           const payload = JSON.parse(atob(callbackToken.split('.')[1]));
           if (payload.tenant_id) {
@@ -32,12 +33,10 @@ function App() {
           }
         } catch { /* JWT decode failed */ }
       }
-      // Clean URL
       window.history.replaceState({}, '', window.location.pathname);
     }
 
     const token = localStorage.getItem('sm_token');
-    // Migrate from old key if needed
     let teamId = localStorage.getItem('sm_team_id');
     if (!teamId) {
       const legacy = localStorage.getItem('sm_workspace_id');
@@ -49,9 +48,6 @@ function App() {
     }
 
     if (token && teamId) {
-      setAuth(token, teamId);
-      // Verify token with an authenticated endpoint (not /health which is public)
-      // Only send X-Team-Id; backend defaults X-Workspace-Id to personal workspace
       fetch(`${API_URL}/memory/list?limit=1`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -61,20 +57,20 @@ function App() {
         .then((res) => {
           if (res.ok) {
             setAuthenticated(true);
+            setAuthState({ token, teamId });
           } else if (res.status === 401 || res.status === 403) {
-            // Token is actually invalid — clear and force re-login
             localStorage.removeItem('sm_token');
             localStorage.removeItem('sm_team_id');
             setError('Session expired — please sign in again');
           } else {
-            // Server error (5xx) — trust stored token, show reconnecting bar
             setAuthenticated(true);
+            setAuthState({ token, teamId });
             connection.markDisconnected();
           }
         })
         .catch(() => {
-          // Network error / API unreachable — trust stored token, show reconnecting bar
           setAuthenticated(true);
+          setAuthState({ token, teamId });
           connection.markDisconnected();
         })
         .finally(() => setLoading(false));
@@ -104,6 +100,13 @@ function App() {
     window.location.reload();
   };
 
+  // Create the fetch adapter with current auth credentials
+  const adapter = createFetchAdapter({
+    apiUrl: API_URL,
+    getToken: () => authState.token,
+    getTeamId: () => authState.teamId,
+  });
+
   return (
     <>
       {!connection.connected && (
@@ -112,7 +115,11 @@ function App() {
           API unreachable — reconnecting{connection.checking ? '...' : ''}
         </div>
       )}
-      <GraphExplorer onLogout={handleLogout} />
+      <GraphExplorer
+        adapter={adapter}
+        wsUrl={WS_URL}
+        wsToken={authState.token}
+      />
     </>
   );
 }

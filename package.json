@@ -12,6 +12,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@smartmemory/graph": "file:../smart-memory-graph",
     "@tailwindcss/vite": "^4.1.18",
     "cytoscape": "^3.33.1",
     "cytoscape-cose-bilkent": "^4.1.0",
