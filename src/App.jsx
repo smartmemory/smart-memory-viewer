@@ -3,7 +3,7 @@ import { GraphExplorer, createFetchAdapter, useConnectionStatus } from '@smartme
 import '@smartmemory/graph/src/graph.css';
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:9001' : 'https://api.smartmemory.ai');
-const WS_URL = import.meta.env.VITE_WS_URL || (import.meta.env.DEV ? 'ws://localhost:9001/ws/insights' : 'wss://api.smartmemory.ai/ws/insights');
+const WS_URL = import.meta.env.VITE_WS_URL || (import.meta.env.DEV ? 'ws://localhost:9003/events' : 'wss://api.smartmemory.ai/ws/insights');
 
 function App() {
   const [authenticated, setAuthenticated] = useState(false);
