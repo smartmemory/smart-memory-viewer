@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@source "../../smart-memory-graph/src/**/*.{js,jsx}";
 
 /* Base styles */
 body {
