@@ -30,10 +30,10 @@ Copy `.env.example` to `.env` and configure:
 
 ```bash
 VITE_API_URL=http://localhost:9001      # SmartMemory API
-VITE_WS_URL=ws://localhost:9001/ws/insights  # WebSocket for streaming
+VITE_WS_URL=ws://localhost:9003/events  # Insights WebSocket for streaming
 ```
 
-Production defaults to `https://api.smartmemory.ai` and `wss://api.smartmemory.ai/ws/insights`.
+Production defaults to `https://api.smartmemory.ai` and `wss://api.insights.smartmemory.ai/events`.
 
 ## Scripts
 
