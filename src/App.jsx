@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { GraphExplorer, createFetchAdapter, useConnectionStatus } from '@smartmemory/graph';
 import { SignIn, useAuth as useClerkAuth } from '@clerk/clerk-react';
 import { CLERK_APPEARANCE, exchangeClerkSession } from '@smartmemory/sdk-js';
+import { useSmartMemory } from '@smartmemory/sdk-js/react';
 import '@smartmemory/graph/src/graph.css';
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:9001' : 'https://api.smartmemory.ai');
@@ -22,8 +23,8 @@ function App() {
   const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(!CALLBACK_ERROR);
   const [error, setError] = useState(CALLBACK_ERROR);
-  const [authState, setAuthState] = useState({ token: null, teamId: null });
   const initOnceRef = useRef(false);
+  const client = useSmartMemory();
   const connection = useConnectionStatus({
     healthUrl: `${API_URL}/health`,
   });
@@ -36,91 +37,10 @@ function App() {
       return;
     }
 
-    const token = localStorage.getItem('sm_token');
-    let teamId = localStorage.getItem('sm_team_id');
-    if (!teamId) {
-      const legacy = localStorage.getItem('sm_workspace_id');
-      if (legacy) {
-        teamId = legacy;
-        localStorage.setItem('sm_team_id', legacy);
-        localStorage.removeItem('sm_workspace_id');
-      }
-    }
-
-    const bootstrapFromCookie = async () => {
-      try {
-        const refreshResp = await fetch(`${API_URL}/auth/refresh`, {
-          method: 'POST',
-          credentials: 'include',
-        });
-        if (!refreshResp.ok) return false;
-        const refreshData = await refreshResp.json();
-        const cookieToken = refreshData?.access_token;
-        if (!cookieToken) return false;
-
-        const meResp = await fetch(`${API_URL}/auth/me`, {
-          method: 'GET',
-          credentials: 'include',
-          headers: { Authorization: `Bearer ${cookieToken}` },
-        });
-        if (!meResp.ok) return false;
-        const me = await meResp.json();
-        const resolvedTeam = me?.default_team_id || localStorage.getItem('sm_team_id');
-        if (!resolvedTeam) return false;
-
-        sessionStorage.removeItem(REDIRECT_INFLIGHT_KEY);
-        sessionStorage.removeItem(REDIRECT_LOCK_KEY);
-        localStorage.setItem('sm_token', cookieToken);
-        localStorage.setItem('sm_team_id', resolvedTeam);
-        setAuthenticated(true);
-        setAuthState({ token: cookieToken, teamId: resolvedTeam });
-        return true;
-      } catch {
-        return false;
-      }
-    };
-
-    if (token && teamId) {
-      fetch(`${API_URL}/memory/list?limit=1`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'X-Team-Id': teamId,
-        },
-      })
-        .then((res) => {
-          if (res.ok) {
-            sessionStorage.removeItem(REDIRECT_INFLIGHT_KEY);
-            sessionStorage.removeItem(REDIRECT_LOCK_KEY);
-            setAuthenticated(true);
-            setAuthState({ token, teamId });
-          } else if (res.status === 401 || res.status === 403) {
-            localStorage.removeItem('sm_token');
-            localStorage.removeItem('sm_team_id');
-            setError('Session expired — please sign in again');
-          } else {
-            setAuthenticated(true);
-            setAuthState({ token, teamId });
-            connection.markDisconnected();
-          }
-        })
-        .catch(() => {
-          setAuthenticated(true);
-          setAuthState({ token, teamId });
-          connection.markDisconnected();
-        })
-        .finally(() => setLoading(false));
-    } else {
-      bootstrapFromCookie()
-        .then((ok) => {
-          if (!ok) {
-            setLoading(false);
-          } else {
-            setLoading(false);
-          }
-        })
-        .catch(() => setLoading(false));
-    }
-  }, []);
+    client.auth.bootstrapSession().then(ok => {
+      setAuthenticated(ok);
+    }).finally(() => setLoading(false));
+  }, [client]);
 
   if (loading) {
     return (
@@ -134,7 +54,7 @@ function App() {
   }
 
   if (!authenticated) {
-    return <LoginPanel error={error} setAuthenticated={setAuthenticated} setAuthState={setAuthState} setError={setError} />;
+    return <LoginPanel error={error} setAuthenticated={setAuthenticated} setError={setError} />;
   }
 
   const handleLogout = async () => {
@@ -146,17 +66,14 @@ function App() {
     } catch {
       // best effort
     }
-    localStorage.removeItem('sm_token');
-    localStorage.removeItem('sm_team_id');
-    localStorage.removeItem('sm_refresh_token');
+    await client.auth.logout();
     window.location.replace('/?reset=1');
   };
 
-  // Create the fetch adapter with current auth credentials
   const adapter = createFetchAdapter({
     apiUrl: API_URL,
-    getToken: () => authState.token,
-    getTeamId: () => authState.teamId,
+    getToken: () => client.auth.getCurrentToken(),
+    getTeamId: () => client.auth.tokenManager.getTeamId(),
   });
 
   return (
@@ -170,7 +87,7 @@ function App() {
       <GraphExplorer
         adapter={adapter}
         wsUrl={WS_URL}
-        wsToken={authState.token}
+        wsToken={client.auth.getCurrentToken()}
         toolbarRightActions={(
           <button
             type="button"
@@ -192,10 +109,11 @@ function App() {
   );
 }
 
-function LoginPanel({ error: initialError, setAuthenticated, setAuthState, setError }) {
+function LoginPanel({ error: initialError, setAuthenticated, setError }) {
   const [error, setLocalError] = useState(initialError || null);
   const [bootstrapping, setBootstrapping] = useState(false);
   const { isLoaded, isSignedIn, getToken, signOut } = useClerkAuth();
+  const client = useSmartMemory();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -218,9 +136,10 @@ function LoginPanel({ error: initialError, setAuthenticated, setAuthState, setEr
         const token = resp.headers.get('x-sm-access-token');
         const teamId = resp.headers.get('x-sm-team-id');
         if (!token || !teamId) throw new Error('Missing SmartMemory session headers');
-        localStorage.setItem('sm_token', token);
-        localStorage.setItem('sm_team_id', teamId);
-        setAuthState({ token, teamId });
+        client.auth.tokenManager.setAccessToken(token);
+        client.auth.tokenManager.setTeamId(teamId);
+        client.auth.currentToken = token;
+        client.auth.notifyListeners();
         setAuthenticated(true);
         setError(null);
       } catch (e) {
@@ -235,7 +154,7 @@ function LoginPanel({ error: initialError, setAuthenticated, setAuthState, setEr
     };
     void run();
     return () => { cancelled = true; };
-  }, [isLoaded, isSignedIn, getToken, setAuthenticated, setAuthState, setError]);
+  }, [isLoaded, isSignedIn, getToken, setAuthenticated, setError, client]);
 
   if (error) {
     return (

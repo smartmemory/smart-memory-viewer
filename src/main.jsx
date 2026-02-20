@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ClerkProvider } from '@clerk/clerk-react';
+import { SmartMemoryProvider } from '@smartmemory/sdk-js/react';
 import './index.css';
 import App from './App';
 
@@ -13,7 +14,9 @@ createRoot(document.getElementById('root')).render(
       signInFallbackRedirectUrl="/"
       signUpFallbackRedirectUrl="/"
     >
-      <App />
+      <SmartMemoryProvider mode="sso" apiBaseUrl={import.meta.env.VITE_API_URL}>
+        <App />
+      </SmartMemoryProvider>
     </ClerkProvider>
   </StrictMode>
 );
