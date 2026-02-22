@@ -113,6 +113,7 @@ function LoginPanel({ error: initialError, setAuthenticated, setError }) {
   const [error, setLocalError] = useState(initialError || null);
   const [bootstrapping, setBootstrapping] = useState(false);
   const { isLoaded, isSignedIn, getToken, signOut } = useClerkAuth();
+
   const client = useSmartMemory();
 
   useEffect(() => {
@@ -156,23 +157,31 @@ function LoginPanel({ error: initialError, setAuthenticated, setError }) {
     return () => { cancelled = true; };
   }, [isLoaded, isSignedIn, getToken, setAuthenticated, setError, client]);
 
-  if (error) {
+  // Never mount <SignIn> while Clerk says the user is signed in — it auto-triggers OAuth
+  // redirects and loops. Show bootstrap progress or error + Reset Login instead.
+  if (isLoaded && isSignedIn) {
     return (
       <div className="flex items-center justify-center h-screen bg-slate-900">
         <div className="bg-slate-800 rounded-xl p-8 max-w-md w-full mx-4 shadow-2xl border border-slate-700">
           <h1 className="text-2xl font-bold text-slate-100 mb-2">SmartMemory Graph Viewer</h1>
-          <div className="bg-red-900/30 border border-red-700 rounded-lg p-3 mb-4 text-red-300 text-sm">
-            {error}
-          </div>
+          <p className="text-slate-400 text-sm mb-4">
+            {bootstrapping ? 'Finalizing sign-in...' : error ? 'Sign-in failed.' : 'Completing sign-in...'}
+          </p>
+          {error && (
+            <div className="bg-red-900/30 border border-red-700 rounded-lg p-3 mb-4 text-red-300 text-sm">
+              {error}
+            </div>
+          )}
           <button
+            type="button"
             onClick={() => {
               sessionStorage.removeItem(REDIRECT_LOCK_KEY);
               sessionStorage.removeItem(REDIRECT_INFLIGHT_KEY);
-              setLocalError(null);
+              void signOut({ redirectUrl: `${window.location.origin}/` });
             }}
             className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-3 px-4 rounded-lg transition-colors"
           >
-            Retry
+            Reset Login
           </button>
         </div>
       </div>
@@ -192,9 +201,7 @@ function LoginPanel({ error: initialError, setAuthenticated, setError }) {
             </div>
           </div>
           <h1 className="text-2xl font-bold text-white">Welcome to SmartMemory</h1>
-          <p className="mt-2 text-gray-400">
-            {bootstrapping ? 'Finalizing sign-in...' : 'Sign in to your cognitive architecture'}
-          </p>
+          <p className="mt-2 text-gray-400">Sign in to your cognitive architecture</p>
         </div>
         <SignIn path="/" routing="path" appearance={CLERK_APPEARANCE} />
       </div>
