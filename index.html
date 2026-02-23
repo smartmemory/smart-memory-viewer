@@ -10,17 +10,6 @@
   </head>
   <body>
     <div id="root"></div>
-    <script>
-      // Kill stale service workers from PWA plugin (dev mode doesn't use PWA)
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          registrations.forEach(function(registration) {
-            registration.unregister();
-            console.debug('[SW] Unregistered stale service worker');
-          });
-        });
-      }
-    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

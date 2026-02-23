@@ -7,6 +7,24 @@ import App from './App';
 
 const clerkPublishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
+if (import.meta.env.DEV && 'serviceWorker' in navigator) {
+  void navigator.serviceWorker
+    .getRegistrations()
+    .then(async (registrations) => {
+      await Promise.all(
+        registrations.map(async (registration) => {
+          const removed = await registration.unregister();
+          if (removed) {
+            console.debug('[SW] Unregistered stale service worker in development');
+          }
+        }),
+      );
+    })
+    .catch((error) => {
+      console.warn('[SW] Failed to clean stale service workers in development', error);
+    });
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ClerkProvider

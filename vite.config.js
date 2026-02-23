@@ -62,6 +62,7 @@ export default defineConfig(({ mode }) => ({
   },
   optimizeDeps: {
     include: ['cytoscape', 'cytoscape-cose-bilkent', 'cytoscape-dagre'],
+    exclude: ['@smartmemory/graph', '@smartmemory/sdk-js'],
   },
   server: {
     port: 5178,

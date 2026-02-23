@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { GraphExplorer, createFetchAdapter, useConnectionStatus } from '@smartmemory/graph';
 import { SignIn, useAuth as useClerkAuth } from '@clerk/clerk-react';
 import { CLERK_APPEARANCE, exchangeClerkSession } from '@smartmemory/sdk-js';
@@ -23,24 +23,128 @@ function App() {
   const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(!CALLBACK_ERROR);
   const [error, setError] = useState(CALLBACK_ERROR);
+  const [wsToken, setWsToken] = useState(null);
   const initOnceRef = useRef(false);
+  const resolvedRef = useRef(false);
   const client = useSmartMemory();
+  const { isLoaded: clerkLoaded, isSignedIn, getToken: getClerkToken } = useClerkAuth();
+
+  // Refs so Phase 1's async callback can read current Clerk state without stale closures
+  const clerkLoadedRef = useRef(false);
+  const clerkSignedInRef = useRef(false);
+  useEffect(() => { clerkLoadedRef.current = clerkLoaded; }, [clerkLoaded]);
+  useEffect(() => { clerkSignedInRef.current = isSignedIn; }, [isSignedIn]);
   const connection = useConnectionStatus({
     healthUrl: `${API_URL}/health`,
   });
 
+  const tryClerkExchange = useCallback(async () => {
+    if (!isSignedIn) return false;
+    try {
+      const { response: resp } = await exchangeClerkSession({
+        apiBaseUrl: API_URL,
+        getToken: getClerkToken,
+      });
+      const token = resp.headers.get('x-sm-access-token');
+      const teamId = resp.headers.get('x-sm-team-id');
+      if (!token || !teamId) return false;
+      client.auth.tokenManager.setAccessToken(token);
+      client.auth.tokenManager.setTeamId(teamId);
+      client.auth.currentToken = token;
+      client.auth.notifyListeners();
+      setWsToken(token);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [isSignedIn, getClerkToken, client]);
+
+  // Phase 1: start cookie bootstrap immediately — no need to wait for Clerk.
+  // Returning users with a valid SSO cookie resolve here without any Clerk delay.
+  // Note: bootstrapSession uses cookie auth only — it does NOT produce a bearer
+  // token, so wsToken stays null until Phase 2 runs the Clerk exchange.
   useEffect(() => {
     if (initOnceRef.current) return;
     initOnceRef.current = true;
+    if (CALLBACK_ERROR) { setLoading(false); return; }
 
-    if (CALLBACK_ERROR) {
-      return;
-    }
+    client.auth.tokenManager.setAccessToken(null);
+    client.auth.currentToken = null;
 
-    client.auth.bootstrapSession().then(ok => {
-      setAuthenticated(ok);
-    }).finally(() => setLoading(false));
+    client.auth.bootstrapSession().then((ok) => {
+      if (resolvedRef.current) return; // Clerk exchange already won the race
+      if (ok) {
+        resolvedRef.current = true;
+        setAuthenticated(true);
+        setLoading(false);
+        // wsToken stays null — Phase 2 will set it once Clerk loads
+        return;
+      }
+      // Bootstrap failed. Only dismiss the spinner now if Clerk has already loaded
+      // and confirms the user is NOT signed in. Otherwise keep loading=true and let
+      // Phase 2 (Clerk exchange) resolve it — avoiding the "Finalizing sign-in..." flash.
+      if (clerkLoadedRef.current && !clerkSignedInRef.current) {
+        resolvedRef.current = true;
+        setAuthenticated(false);
+        setLoading(false);
+      }
+      // else: Clerk is either still loading or says user IS signed in — Phase 2 handles it
+    });
   }, [client]);
+
+  // Phase 2: run Clerk exchange when signed in.
+  // Always sets authenticated=true on success — including when Phase 1 failed and
+  // left loading=true while waiting for Clerk. This eliminates the LoginPanel flash.
+  useEffect(() => {
+    if (!clerkLoaded || !isSignedIn) return;
+
+    tryClerkExchange().then((ok) => {
+      if (ok) {
+        // Success — always authenticate, even if Phase 1 already resolved with false.
+        // setAuthenticated(true) is a no-op if Phase 1 already succeeded.
+        resolvedRef.current = true;
+        setAuthenticated(true);
+        setLoading(false);
+      } else if (!resolvedRef.current) {
+        // Exchange failed and Phase 1 also didn't succeed — show LoginPanel.
+        resolvedRef.current = true;
+        setAuthenticated(false);
+        setLoading(false);
+      }
+      // If exchange failed but Phase 1 already authenticated — don't downgrade.
+    });
+  }, [clerkLoaded, isSignedIn, tryClerkExchange]);
+
+  // Phase 3: Clerk loaded but user is NOT signed in.
+  // Handles the case where Phase 1 kept loading=true waiting for Clerk,
+  // but Clerk says there's no session. Dismiss the spinner and show LoginPanel.
+  useEffect(() => {
+    if (!clerkLoaded || isSignedIn) return;
+    if (!resolvedRef.current) {
+      resolvedRef.current = true;
+      setAuthenticated(false);
+      setLoading(false);
+    }
+  }, [clerkLoaded, isSignedIn]);
+
+  const adapter = useMemo(() => createFetchAdapter({
+    apiUrl: API_URL,
+    getToken: () => client.auth.getCurrentToken(),
+    getTeamId: () => client.auth.tokenManager.getTeamId(),
+  }), [client]);
+
+  const handleLogout = async () => {
+    try {
+      await fetch(`${API_URL}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch {
+      // best effort
+    }
+    await client.auth.logout();
+    window.location.replace('/?reset=1');
+  };
 
   if (loading) {
     return (
@@ -57,25 +161,6 @@ function App() {
     return <LoginPanel error={error} setAuthenticated={setAuthenticated} setError={setError} />;
   }
 
-  const handleLogout = async () => {
-    try {
-      await fetch(`${API_URL}/auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-    } catch {
-      // best effort
-    }
-    await client.auth.logout();
-    window.location.replace('/?reset=1');
-  };
-
-  const adapter = createFetchAdapter({
-    apiUrl: API_URL,
-    getToken: () => client.auth.getCurrentToken(),
-    getTeamId: () => client.auth.tokenManager.getTeamId(),
-  });
-
   return (
     <>
       {!connection.connected && (
@@ -86,8 +171,8 @@ function App() {
       )}
       <GraphExplorer
         adapter={adapter}
-        wsUrl={WS_URL}
-        wsToken={client.auth.getCurrentToken()}
+        wsUrl={wsToken ? WS_URL : undefined}
+        wsToken={wsToken}
         toolbarRightActions={(
           <button
             type="button"
