@@ -46,7 +46,7 @@ function App() {
         getToken: getClerkToken,
       });
       const token = resp.headers.get('x-sm-access-token');
-      const teamId = resp.headers.get('x-sm-team-id');
+      const teamId = resp.headers.get('x-sm-workspace-id');
       if (!token || !teamId) return false;
       client.auth.tokenManager.setAccessToken(token);
       client.auth.tokenManager.setTeamId(teamId);
@@ -220,7 +220,7 @@ function LoginPanel({ error: initialError, setAuthenticated, setError }) {
           getToken,
         });
         const token = resp.headers.get('x-sm-access-token');
-        const teamId = resp.headers.get('x-sm-team-id');
+        const teamId = resp.headers.get('x-sm-workspace-id');
         if (!token || !teamId) throw new Error('Missing SmartMemory session headers');
         client.auth.tokenManager.setAccessToken(token);
         client.auth.tokenManager.setTeamId(teamId);
