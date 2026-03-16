@@ -33,7 +33,7 @@ export default defineConfig({
   },
   define: {
     // Bake URLs into bundle at build time — no runtime config file needed.
-    'import.meta.env.VITE_API_URL': JSON.stringify('http://localhost:9005'),
-    'import.meta.env.VITE_WS_URL': JSON.stringify('ws://localhost:9004'),
+    'import.meta.env.VITE_API_URL': JSON.stringify('http://localhost:9014'),
+    'import.meta.env.VITE_WS_URL': JSON.stringify('ws://localhost:9015'),
   },
 });
