@@ -6,12 +6,9 @@ import { useSmartMemory } from '@smartmemory/sdk-js/react';
 import '@smartmemory/graph/src/graph.css';
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:9001' : 'https://api.smartmemory.ai');
-const WS_URL =
-  import.meta.env.VITE_WS_URL ||
-  import.meta.env.VITE_INSIGHTS_WS_URL ||
-  (import.meta.env.DEV
-    ? 'ws://localhost:9003/events'
-    : 'wss://api.insights.smartmemory.ai/events');
+
+// Parse ?run=<uuid> from URL for shareable replay links (PLAT-PROGRESS-1 T017)
+const REPLAY_RUN_ID = new URLSearchParams(window.location.search).get('run') || undefined;
 const REDIRECT_LOCK_KEY = 'sm_sso_redirect_lock';
 const REDIRECT_INFLIGHT_KEY = 'sm_sso_redirecting';
 const CALLBACK_ERROR = (() => {
@@ -171,8 +168,9 @@ function App() {
       )}
       <GraphExplorer
         adapter={adapter}
-        wsUrl={wsToken ? WS_URL : undefined}
-        wsToken={wsToken}
+        sseBaseUrl={wsToken ? API_URL : undefined}
+        sseToken={wsToken}
+        replayRunId={REPLAY_RUN_ID}
         toolbarRightActions={(
           <button
             type="button"
