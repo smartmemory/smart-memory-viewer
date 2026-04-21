@@ -29,10 +29,11 @@ import '@smartmemory/graph/src/graph.css';
 // Activity iframe is served behind <clientId>.discordsays.com; all fetches are same-origin.
 // Absolute URLs are not needed — and leak the Hetzner host into the bundle.
 const GRAPH_API = '/api/graph';
-// SmartMemory API is same-origin under /api (Caddy forwards everything
-// not under /api/graph/* to svc-api). The viewer adapter appends paths
-// like '/memory/graph/full', so apiUrl='/api' yields '/api/memory/graph/full'.
-const SM_API = '/api';
+// SmartMemory API lives at the same origin (Caddy forwards /memory/*
+// and /api/* to svc-api). The viewer adapter appends paths like
+// '/memory/graph/full' — with an empty apiUrl they hit the origin root,
+// which Caddy routes correctly. Matches studio.smartmemory.ai pattern.
+const SM_API = '';
 
 function readLaunchParams() {
   const p = new URLSearchParams(window.location.search);
