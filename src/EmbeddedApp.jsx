@@ -152,11 +152,12 @@ function EmbeddedApp() {
 
   const connection = useConnectionStatus({ healthUrl: `${SM_API}/health` });
 
-  // Cookie-auth'd adapter — no bearer token, no team id; server trusts the cookie.
+  // Cookie-auth'd adapter — sm_access_token cookie resolves the caller to
+  // the sanctuary service account; X-Workspace-Id pins the shared workspace.
   const adapter = useMemo(() => createFetchAdapter({
     apiUrl: SM_API,
     getToken: () => null,
-    getTeamId: () => null,
+    getTeamId: () => 'sanctuary-default',
     credentials: 'include',
   }), []);
 
