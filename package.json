@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.28.2",
+    "@discord/embedded-app-sdk": "^2.2.0",
     "@smartmemory/graph": "file:../smart-memory-graph",
     "@smartmemory/sdk-js": "file:../smart-memory-sdk-js",
     "@tailwindcss/vite": "^4.1.18",

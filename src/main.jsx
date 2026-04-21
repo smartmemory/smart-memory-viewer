@@ -4,6 +4,17 @@ import { ClerkProvider } from '@clerk/clerk-react';
 import { SmartMemoryProvider } from '@smartmemory/sdk-js/react';
 import './index.css';
 import App from './App';
+import EmbeddedApp from './EmbeddedApp';
+
+// FEAT-6 (discord-bot) Activity build — when VITE_ALLOW_EMBEDDED=true and the
+// URL carries Discord's launch params, skip the Clerk SSO flow and boot
+// straight into the Activity claim handshake. Returning false keeps the
+// default behavior intact for all other deployments (viewer.smartmemory.ai etc).
+function shouldRunEmbedded() {
+  if (import.meta.env.VITE_ALLOW_EMBEDDED !== 'true') return false;
+  const p = new URLSearchParams(window.location.search);
+  return p.has('guild_id') && p.has('channel_id');
+}
 
 const clerkPublishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
@@ -25,16 +36,28 @@ if (import.meta.env.DEV && 'serviceWorker' in navigator) {
     });
 }
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <ClerkProvider
-      publishableKey={clerkPublishableKey}
-      signInFallbackRedirectUrl="/"
-      signUpFallbackRedirectUrl="/"
-    >
-      <SmartMemoryProvider mode="sso" apiBaseUrl={import.meta.env.VITE_API_URL}>
-        <App />
-      </SmartMemoryProvider>
-    </ClerkProvider>
-  </StrictMode>
-);
+const rootElement = document.getElementById('root');
+
+if (shouldRunEmbedded()) {
+  // Activity mode: no Clerk, no SmartMemoryProvider SSO. Auth lives in the
+  // HttpOnly session cookie issued by discord-bot's /api/graph/claim.
+  createRoot(rootElement).render(
+    <StrictMode>
+      <EmbeddedApp />
+    </StrictMode>
+  );
+} else {
+  createRoot(rootElement).render(
+    <StrictMode>
+      <ClerkProvider
+        publishableKey={clerkPublishableKey}
+        signInFallbackRedirectUrl="/"
+        signUpFallbackRedirectUrl="/"
+      >
+        <SmartMemoryProvider mode="sso" apiBaseUrl={import.meta.env.VITE_API_URL}>
+          <App />
+        </SmartMemoryProvider>
+      </ClerkProvider>
+    </StrictMode>
+  );
+}
