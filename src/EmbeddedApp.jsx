@@ -94,8 +94,10 @@ function EmbeddedApp() {
         const sdk = new DiscordSDK(clientId);
         await sdk.ready();
 
-        // identify scope is the only one we ask for — the claim handler
-        // verifies the returned token against Discord's /users/@me.
+        // Three-step Activity OAuth:
+        //   1. authorize()       → authorization code
+        //   2. backend exchange  → access_token (using the app's client_secret)
+        //   3. authenticate()    → completes the SDK handshake
         const { code } = await sdk.commands.authorize({
           client_id: clientId,
           response_type: 'code',
@@ -103,14 +105,27 @@ function EmbeddedApp() {
           prompt: 'none',
           scope: ['identify'],
         });
+        if (cancelled) return;
 
-        // Exchange the authorization code for an access_token via the Activity SDK.
-        // The SDK's authenticate() method takes { code } and returns { access_token, user }.
-        const authResult = await sdk.commands.authenticate({ access_token: code });
+        const exchangeRes = await fetch(`${GRAPH_API}/oauth-exchange`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ code }),
+        });
+        if (exchangeRes.status === 401) {
+          throw new Error('Discord rejected the authorization code. Try /graph again.');
+        }
+        if (!exchangeRes.ok) {
+          throw new Error(`OAuth exchange failed: ${exchangeRes.status}`);
+        }
+        const { access_token: accessToken } = await exchangeRes.json();
+
+        await sdk.commands.authenticate({ access_token: accessToken });
         if (cancelled) return;
 
         const envelope = await claim({
-          accessToken: authResult.access_token,
+          accessToken,
           guildId: launch.guild_id,
           channelId: launch.channel_id,
           instanceId: launch.instance_id,
