@@ -98,12 +98,18 @@ function EmbeddedApp() {
         //   1. authorize()       → authorization code
         //   2. backend exchange  → access_token (using the app's client_secret)
         //   3. authenticate()    → completes the SDK handshake
+        // redirect_uri must be set and must match what discord-bot sends
+        // to /oauth2/token. The Activity iframe origin is
+        // https://<clientId>.discordsays.com — Discord's own docs specify
+        // this as the canonical Activity redirect target.
+        const redirectUri = `https://${clientId}.discordsays.com/`;
         const { code } = await sdk.commands.authorize({
           client_id: clientId,
           response_type: 'code',
           state: '',
           prompt: 'none',
           scope: ['identify'],
+          redirect_uri: redirectUri,
         });
         if (cancelled) return;
 
