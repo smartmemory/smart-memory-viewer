@@ -53,7 +53,7 @@ async function claim({ accessToken, guildId, channelId, instanceId }) {
     body: JSON.stringify({
       discord_access_token: accessToken,
       guild_id: guildId,
-      voice_channel_id: channelId,
+      channel_id: channelId,
       instance_id: instanceId,
     }),
   });
