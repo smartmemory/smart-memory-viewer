@@ -1,9 +1,11 @@
 node_modules
 dist
+dist-sanctuary
 *.local
 .env
 .env.*
 !.env.example
+!.env.sanctuary
 package-lock.json
 
 # Local secrets

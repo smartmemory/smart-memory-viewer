@@ -7,6 +7,8 @@
     "dev": "vite --port 5178",
     "build": "vite build",
     "build:local": "vite build --config vite.config.local.js",
+    "build:sanctuary": "vite build --mode sanctuary --outDir dist-sanctuary",
+    "deploy:sanctuary": "npm run build:sanctuary && rsync -az --delete dist-sanctuary/ hetzner:/tmp/sanctuary-new/ && ssh hetzner \"sudo rm -rf /var/www/sanctuary.bak && sudo mv /var/www/sanctuary /var/www/sanctuary.bak && sudo mv /tmp/sanctuary-new /var/www/sanctuary && sudo chown -R caddy:caddy /var/www/sanctuary 2>/dev/null || true\"",
     "preview": "vite preview --port 5178",
     "lint": "eslint .",
     "test": "vitest run",
