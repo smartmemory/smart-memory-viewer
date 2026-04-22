@@ -199,6 +199,9 @@ function EmbeddedApp() {
         sseBaseUrl={SM_API}
         extraQuery={scopePrefixSearchParam}
         focusNodeId={state.envelope.focus ?? undefined}
+        // Discord viewport is cramped and Delete is too risky here — power tools
+        // (Move/Isolate/Delete) stay in the full viewer.
+        hideSelectionToolbar
         className="h-screen w-screen"
       />
     </>
