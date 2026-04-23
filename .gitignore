@@ -12,3 +12,6 @@ package-lock.json
 .secrets
 .act.secrets
 .idea/
+
+# macOS
+.DS_Store
