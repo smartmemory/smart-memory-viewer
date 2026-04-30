@@ -77,7 +77,7 @@ async function claim({ accessToken, guildId, channelId, instanceId }) {
 }
 
 function EmbeddedApp() {
-  const [state, setState] = useState({ kind: 'booting' });
+  const [state, setState] = useState({ kind: 'booting', label: 'Loading…' });
 
   useEffect(() => {
     const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
@@ -95,6 +95,29 @@ function EmbeddedApp() {
     let cancelled = false;
     (async () => {
       try {
+        // FEAT-34: route check to determine if /lens or /graph was launched.
+        // Both go through this same entry point because Discord Activities
+        // share one root URL per app.
+        let routeApp = 'graph';
+        try {
+          const routeRes = await fetch(
+            `/api/activity/route?guild_id=${launch.guild_id}&channel_id=${launch.channel_id}`,
+          );
+          if (routeRes.ok) {
+            const data = await routeRes.json();
+            routeApp = data.app || 'graph';
+          }
+        } catch {
+          // Route check failed — assume graph
+        }
+
+        if (!cancelled) {
+          setState({
+            kind: 'booting',
+            label: routeApp === 'lens' ? 'Loading Lens…' : 'Opening the SmartMemory graph…',
+          });
+        }
+
         const sdk = new DiscordSDK(clientId);
         await sdk.ready();
 
@@ -132,6 +155,24 @@ function EmbeddedApp() {
         await sdk.commands.authenticate({ access_token: accessToken });
         if (cancelled) return;
 
+        // FEAT-34: if /lens was launched, set the lens session cookie via
+        // lens-api and redirect to the lens app. The cookie is set on
+        // lens.smartmemory.ai (Partitioned, SameSite=None) so subsequent
+        // requests under /lens/api/* are authenticated.
+        if (routeApp === 'lens') {
+          const lensAuthRes = await fetch('/lens/api/auth/discord-activity', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ access_token: accessToken }),
+          });
+          if (!lensAuthRes.ok) {
+            throw new Error(`Lens auth failed: ${lensAuthRes.status}`);
+          }
+          window.location.replace('/lens/activity.html' + window.location.search);
+          return;
+        }
+
         const envelope = await claim({
           accessToken,
           guildId: launch.guild_id,
@@ -166,7 +207,7 @@ function EmbeddedApp() {
       <div className="flex items-center justify-center h-screen bg-slate-900">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4" />
-          <p className="text-slate-400">Opening the SmartMemory graph…</p>
+          <p className="text-slate-400">{state.label}</p>
         </div>
       </div>
     );
