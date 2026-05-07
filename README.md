@@ -1,5 +1,7 @@
 # SmartMemory Graph Viewer
 
+**Version:** 0.1.0
+
 Standalone knowledge graph viewer for SmartMemory. Thin auth shell that delegates all graph visualization to `@smartmemory/graph`.
 
 ## Features
@@ -69,3 +71,7 @@ All graph visualization code lives in `@smartmemory/graph` (see `../smart-memory
 - [SmartMemory Roadmap](../smart-memory-docs/docs/ROADMAP.md)
 - [Knowledge Graph API](../smart-memory-docs/docs/features/knowledge-graph.md)
 - [Graph Colors Contract](../contracts/graph-colors.json)
+
+## Documentation
+
+Full SmartMemory documentation: https://docs.smartmemory.ai
