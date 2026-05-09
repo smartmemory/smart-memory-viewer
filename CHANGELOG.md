@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- One-click share-replay button in the viewer toolbar — surfaces after a run
+  completes (graph has elements + quiet period), copies `<origin>/?run=<uuid>`
+  to clipboard with a transient "Link copied" confirmation, and falls back to
+  a manual select-text input (with `console.warn`) when `navigator.clipboard`
+  is unavailable. Wave 1 Stream C.
 - Local build entry for pip-bundled loginless viewer (DIST-LITE-4)
 - Two-phase Clerk auth + wsToken for WebSocket
 - Discord Activity boot path — sanctuary / discord-bot (FEAT-6)
