@@ -19,6 +19,7 @@ export default function LocalApp() {
     <GraphExplorer
       adapter={localAdapter}
       wsUrl={import.meta.env.VITE_WS_URL}
+      hideSelectionToolbar
       className="h-screen w-screen"
     />
   );

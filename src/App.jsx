@@ -171,6 +171,7 @@ function App() {
         sseBaseUrl={wsToken ? API_URL : undefined}
         sseToken={wsToken}
         replayRunId={REPLAY_RUN_ID}
+        hideSelectionToolbar
         toolbarRightActions={(
           <button
             type="button"
