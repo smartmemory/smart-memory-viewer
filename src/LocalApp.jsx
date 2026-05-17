@@ -9,10 +9,14 @@ import '@smartmemory/graph/src/graph.css';
 // host: macOS resolves localhost→::1 while the servers bind IPv4 only, and
 // serving the viewer from 127.0.0.1 made its own localhost fetch cross-origin
 // → CORS block. Empty apiUrl = same-origin (matches EmbeddedApp.jsx SM_API
-// pattern → no CORS regardless of localhost vs 127.0.0.1). The events WS is on
-// a different port so it can't be relative — match the current hostname.
-const WS_SCHEME = window.location.protocol === 'https:' ? 'wss' : 'ws';
-const WS_URL = `${WS_SCHEME}://${window.location.hostname}:9015`;
+// pattern → no CORS regardless of localhost vs 127.0.0.1).
+//
+// Streaming: GraphExplorer/useGraphStream migrated WS→SSE. The deprecated
+// `wsUrl` prop is now dead (never read) and passing only it left sseEnabled
+// false → no live updates. The lite daemon serves the SSE stream same-origin
+// at /memory/progress/stream; sseBaseUrl must be truthy to arm streaming, so
+// pass the runtime origin (same-origin → no CORS, IPv4-safe like apiUrl).
+const SSE_BASE_URL = window.location.origin;
 const localAdapter = createFetchAdapter({
   apiUrl: '',
   getToken: () => '',
@@ -27,7 +31,7 @@ export default function LocalApp() {
   return (
     <GraphExplorer
       adapter={localAdapter}
-      wsUrl={WS_URL}
+      sseBaseUrl={SSE_BASE_URL}
       hideSelectionToolbar
       className="h-screen w-screen"
     />

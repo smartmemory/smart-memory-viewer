@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `LocalApp.jsx` now passes `sseBaseUrl={window.location.origin}` instead of
+  the deprecated, now-dead `wsUrl` prop. `GraphExplorer`/`useGraphStream`
+  migrated WS→SSE; passing only `wsUrl` left `sseEnabled` false so the graph
+  never connected ("Not connected to event stream", 0 nodes). Same-origin
+  base → no CORS, IPv4-safe (matches `apiUrl:''`). Requires the lite daemon's
+  new `GET /memory/progress/stream` (smartmemory CHANGELOG, DEMO-WALKTHROUGH-1).
+
 ### Added
 - One-click share-replay button in the viewer toolbar — surfaces after a run
   completes (graph has elements + quiet period), copies `<origin>/?run=<uuid>`
