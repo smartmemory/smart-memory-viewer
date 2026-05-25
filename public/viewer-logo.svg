@@ -1,12 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <rect x="4" y="4" width="56" height="56" rx="14" fill="#2563eb" />
-  <text
-    x="32"
-    y="41"
-    text-anchor="middle"
-    font-family="Inter, system-ui, -apple-system, sans-serif"
-    font-size="30"
-    font-weight="700"
-    fill="#ffffff"
-  >G</text>
-</svg>
+<svg width="512" height="512" viewBox="0 0 100 100" fill="none" stroke="url(#fil-grad)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><defs><mask id="fil-mask-r0" maskUnits="userSpaceOnUse"><rect x="-10" y="-10" width="120" height="120" fill="white"/><circle cx="50" cy="80" r="6.1" fill="black"/></mask><linearGradient id="fil-grad" gradientUnits="userSpaceOnUse" x1="50" y1="0" x2="50" y2="100"><stop offset="0%" stop-color="#5eead4"/><stop offset="100%" stop-color="#06b6d4"/></linearGradient></defs><g mask="url(#fil-mask-r0)"><path d="M 50 80 C 37.724317109214915 64.80604022171006, 22.72070468714426 60.52056438680777, 22.72070468714426 41.04112877361554"/><path d="M 50 80 C 62.275682890785085 64.80604022171006, 77.27929531285575 60.52056438680778, 77.27929531285575 41.04112877361555"/></g><circle cx="22.72070468714426" cy="41.04112877361554" r="3.4" fill="none"/><circle cx="50" cy="22" r="3.4" fill="none"/><circle cx="77.27929531285575" cy="41.04112877361555" r="3.4" fill="none"/><circle cx="50" cy="80" r="6.5" fill="none"/><circle cx="50" cy="80" r="2.08" fill="url(#fil-grad)" stroke="none"/></svg>
