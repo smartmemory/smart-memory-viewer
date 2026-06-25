@@ -5,6 +5,7 @@ import { SmartMemoryProvider } from '@smartmemory/sdk-js/react';
 import './index.css';
 import App from './App';
 import EmbeddedApp from './EmbeddedApp';
+import { PostHogProvider } from 'posthog-js/react';
 
 // FEAT-6 (discord-bot) Activity build — when VITE_ALLOW_EMBEDDED=true and the
 // URL carries Discord's launch params, skip the Clerk SSO flow and boot
@@ -17,6 +18,28 @@ function shouldRunEmbedded() {
 }
 
 const clerkPublishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+
+// PostHog (Project A). Gated on the key; tags every event with app:'viewer'.
+// No identify() here — viewer fetches no user profile, and PostHog's
+// cross-subdomain cookie already carries the identity set in web/studio within
+// the same project. Pageviews come from history_change autocapture.
+const posthogKey = import.meta.env.VITE_PUBLIC_POSTHOG_KEY;
+function withPostHog(children) {
+  if (!posthogKey) return children;
+  return (
+    <PostHogProvider
+      apiKey={posthogKey}
+      options={{
+        api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
+        defaults: '2025-05-24',
+        capture_exceptions: true,
+        loaded: (ph) => ph.register({ app: 'viewer' }),
+      }}
+    >
+      {children}
+    </PostHogProvider>
+  );
+}
 
 if (import.meta.env.DEV && 'serviceWorker' in navigator) {
   void navigator.serviceWorker
@@ -49,15 +72,17 @@ if (shouldRunEmbedded()) {
 } else {
   createRoot(rootElement).render(
     <StrictMode>
-      <ClerkProvider
-        publishableKey={clerkPublishableKey}
-        signInFallbackRedirectUrl="/"
-        signUpFallbackRedirectUrl="/"
-      >
-        <SmartMemoryProvider mode="sso" apiBaseUrl={import.meta.env.VITE_API_URL}>
-          <App />
-        </SmartMemoryProvider>
-      </ClerkProvider>
+      {withPostHog(
+        <ClerkProvider
+          publishableKey={clerkPublishableKey}
+          signInFallbackRedirectUrl="/"
+          signUpFallbackRedirectUrl="/"
+        >
+          <SmartMemoryProvider mode="sso" apiBaseUrl={import.meta.env.VITE_API_URL}>
+            <App />
+          </SmartMemoryProvider>
+        </ClerkProvider>
+      )}
     </StrictMode>
   );
 }
