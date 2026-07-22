@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (2026-07-22) — PLAT-ANALYTICS-1 product analytics
+
+- Viewer's PostHog provider now uses the shared `createAnalyticsConfig({ app: 'viewer' })`:
+  autocapture off, session replay on but fully masked. The existing missing-key passthrough and
+  Discord bypass are preserved.
+- Viewer deliberately stays **anonymous** — no identity call and no reset. It is a share-link
+  surface whose visitors are frequently not authenticated users, so binding an identity would
+  attribute a public viewer to whoever last signed in.
+
 ### Fixed
 - `LocalApp.jsx` now passes `sseBaseUrl={window.location.origin}` instead of
   the deprecated, now-dead `wsUrl` prop. `GraphExplorer`/`useGraphStream`
