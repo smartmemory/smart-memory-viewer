@@ -6,6 +6,7 @@ import './index.css';
 import App from './App';
 import EmbeddedApp from './EmbeddedApp';
 import { PostHogProvider } from 'posthog-js/react';
+import { createAnalyticsConfig } from '@smartmemory/sdk-js/react/analytics';
 
 // FEAT-6 (discord-bot) Activity build — when VITE_ALLOW_EMBEDDED=true and the
 // URL carries Discord's launch params, skip the Clerk SSO flow and boot
@@ -24,17 +25,17 @@ const clerkPublishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 // cross-subdomain cookie already carries the identity set in web/studio within
 // the same project. Pageviews come from history_change autocapture.
 const posthogKey = import.meta.env.VITE_PUBLIC_POSTHOG_KEY;
-function withPostHog(children) {
-  if (!posthogKey) return children;
+const analyticsConfig = createAnalyticsConfig({
+  app: 'viewer',
+  apiKey: posthogKey,
+  apiHost: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
+});
+export function withPostHog(children, config = analyticsConfig) {
+  if (!config.apiKey) return children;
   return (
     <PostHogProvider
-      apiKey={posthogKey}
-      options={{
-        api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
-        defaults: '2025-05-24',
-        capture_exceptions: true,
-        loaded: (ph) => ph.register({ app: 'viewer' }),
-      }}
+      apiKey={config.apiKey}
+      options={config.options}
     >
       {children}
     </PostHogProvider>
