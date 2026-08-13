@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (2026-08-13) — sanctuary shipped developer-local config
+
+- **`sanctuary.smartmemory.ai` was serving the Clerk *dev* publishable key.**
+  `.env.sanctuary` pinned only the two Discord Activity flags, so every other
+  `VITE_*` value fell through to whatever the building machine had. The
+  PLAT-CLERK-PROD-1 rotation to `pk_live_*` reached the five UIs that deploy
+  through GitHub Actions and missed this one, which deploys by local `rsync`.
+  Since svc-api stopped accepting the dev issuer (PLAT-CLERK-PROD-1 Phase D),
+  the non-embedded fallback branch of `src/main.jsx` could not authenticate at
+  all. `.env.sanctuary` now pins the production API URL, the `pk_live_*` Clerk
+  key, and the PostHog project 277617 key.
+- **Pinning alone was not enough.** Vite ranks the process environment above
+  every `.env` file, and the local docker-compose flow exports
+  `VITE_CLERK_PUBLISHABLE_KEY=pk_test_*` into the shell — so the file said one
+  thing and the shell silently won. `build:sanctuary` now runs vite under
+  `env -u` for each pinned variable, making the build hermetic.
+- Sanctuary deploys now inspect the freshly built bundle before `rsync` and
+  refuse to publish it (`scripts/assert-prod-bundle.mjs`) if a Clerk `pk_test_`
+  key or the foreign ScaleMate PostHog token is present, or if any value pinned
+  in `.env.sanctuary` failed to reach the bundle. The last check is the one that
+  catches an environment leak: "localhost" cannot be blacklisted, because the
+  Discord SDK and posthog-js both legitimately contain it.
+
 ### Added (2026-07-22) — PLAT-ANALYTICS-1 product analytics
 
 - Viewer's PostHog provider now uses the shared `createAnalyticsConfig({ app: 'viewer' })`:
