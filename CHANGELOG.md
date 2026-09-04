@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (2026-09-04) — ask panel beside the graph (DIST-LITE-9)
+
+- `GraphWithAsk` puts `AskPanel` from `@smartmemory/graph` in a side pane next to
+  `GraphExplorer`, in both the Clerk build and the lite build. Ask a question, read the
+  answer, and see the memories and relations it was grounded in.
+- Clicking an evidence or relation row focuses that element in the graph. `GraphExplorer`
+  exposes no focus prop, so this writes `#selected=<id>` and remounts the explorer to
+  replay its hash-restore effect. Two consequences worth knowing: the graph refetches on
+  each click, and a relation focuses its SOURCE entity rather than the edge, because the
+  restore path feeds whatever the hash names into the node-click handler. A
+  `focusElementId` prop on `GraphExplorer` fixes both and is the filed follow-up; it was
+  not added here because PLAT-PUSH-SSE-1 was editing that file at the same time.
+
 ### Fixed (2026-08-13) — sanctuary shipped developer-local config
 
 - **`sanctuary.smartmemory.ai` was serving the Clerk *dev* publishable key.**

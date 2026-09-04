@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { GraphExplorer, createFetchAdapter, useConnectionStatus } from '@smartmemory/graph';
+import { createFetchAdapter, useConnectionStatus } from '@smartmemory/graph';
 import { SignIn, useAuth as useClerkAuth } from '@clerk/clerk-react';
 import { CLERK_APPEARANCE, exchangeClerkSession } from '@smartmemory/sdk-js';
 import { subscribeProgress } from '@smartmemory/sdk-js/progress';
 import { useSmartMemory } from '@smartmemory/sdk-js/react';
 import '@smartmemory/graph/src/graph.css';
 import ShareReplayButton from './components/ShareReplayButton';
+import GraphWithAsk from './components/GraphWithAsk';
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:9001' : 'https://api.smartmemory.ai');
 
@@ -231,14 +232,17 @@ function App() {
           API unreachable — reconnecting{connection.checking ? '...' : ''}
         </div>
       )}
-      <GraphExplorer
+      {/* DIST-LITE-9: ask panel beside the graph; a clicked evidence or relation
+          row focuses the corresponding node. */}
+      <GraphWithAsk
         adapter={adapter}
-        sseBaseUrl={wsToken ? API_URL : undefined}
-        sseToken={wsToken}
-        replayRunId={REPLAY_RUN_ID}
-        hideSelectionToolbar
-        toolbarRightActions={(
-          <>
+        explorerProps={{
+          sseBaseUrl: wsToken ? API_URL : undefined,
+          sseToken: wsToken,
+          replayRunId: REPLAY_RUN_ID,
+          hideSelectionToolbar: true,
+          toolbarRightActions: (
+            <>
             {activeRunId && runComplete && (
               <ShareReplayButton runId={activeRunId} />
             )}
@@ -255,9 +259,9 @@ function App() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 12H3" />
               </svg>
             </button>
-          </>
-        )}
-        className="h-screen w-screen"
+            </>
+          ),
+        }}
       />
     </>
   );

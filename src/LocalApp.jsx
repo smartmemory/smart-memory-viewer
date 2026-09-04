@@ -1,5 +1,6 @@
-import { GraphExplorer, createFetchAdapter } from '@smartmemory/graph';
+import { createFetchAdapter } from '@smartmemory/graph';
 import '@smartmemory/graph/src/graph.css';
+import GraphWithAsk from './components/GraphWithAsk';
 
 // No auth in local mode — token and teamId are empty strings.
 // createFetchAdapter expects { apiUrl, getToken, getTeamId } (fetchAdapter.js:17-22).
@@ -27,13 +28,13 @@ const localAdapter = createFetchAdapter({
 // Option B (405 endpoints in local_api.py) is required to prevent data mutations.
 // See Task 4.3 in DIST-LITE-4 plan.
 
+// DIST-LITE-9: the ask panel sits beside the graph. The lite daemon serves
+// POST /memory/ask at the same origin, so localAdapter reaches it unchanged.
 export default function LocalApp() {
   return (
-    <GraphExplorer
+    <GraphWithAsk
       adapter={localAdapter}
-      sseBaseUrl={SSE_BASE_URL}
-      hideSelectionToolbar
-      className="h-screen w-screen"
+      explorerProps={{ sseBaseUrl: SSE_BASE_URL, hideSelectionToolbar: true }}
     />
   );
 }
