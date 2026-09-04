@@ -33,7 +33,10 @@ export default defineConfig({
   },
   define: {
     // Bake URLs into bundle at build time — no runtime config file needed.
+    // PLAT-PUSH-SSE-1: VITE_WS_URL (ws://localhost:9015) is gone. No source
+    // read it — the graph package moved to SSE — and the lite daemon no longer
+    // runs a WebSocket server. Real-time updates come from
+    // GET /memory/progress/stream on the API port below.
     'import.meta.env.VITE_API_URL': JSON.stringify('http://localhost:9014'),
-    'import.meta.env.VITE_WS_URL': JSON.stringify('ws://localhost:9015'),
   },
 });

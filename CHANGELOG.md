@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed (2026-09-04) — PLAT-PUSH-SSE-1
+
+- **The baked-in `VITE_WS_URL` (`ws://localhost:9015`) in the local build config.** No source
+  file read it, and the lite daemon no longer runs a WebSocket server at all. Live graph
+  updates come from the daemon's progress stream on the API port.
+
 ### Added (2026-09-04) — ask panel beside the graph (DIST-LITE-9)
 
 - `GraphWithAsk` puts `AskPanel` from `@smartmemory/graph` in a side pane next to
