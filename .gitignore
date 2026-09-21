@@ -15,3 +15,6 @@ package-lock.json
 
 # macOS
 .DS_Store
+
+# session flush scratch (per-session, not shared state)
+session-context*
