@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (2026-09-25) — UI-IDLE-DISCONNECT-1
+
+- Hosted graph requests now use SDK refresh/retry, and both progress listeners use the live SDK session (including cookie-only auth). Removed the stale wsToken snapshot and public-health connection indicator; show SDK reconnecting and terminal stream errors. Local and embedded auth ownership is unchanged.
+
 ### Removed (2026-09-04) — PLAT-PUSH-SSE-1
 
 - **The baked-in `VITE_WS_URL` (`ws://localhost:9015`) in the local build config.** No source

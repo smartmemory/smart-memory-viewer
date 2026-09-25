@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { createFetchAdapter, useConnectionStatus } from '@smartmemory/graph';
+import { createFetchAdapter } from '@smartmemory/graph';
 import { SignIn, useAuth as useClerkAuth } from '@clerk/clerk-react';
 import { CLERK_APPEARANCE, exchangeClerkSession } from '@smartmemory/sdk-js';
+import { createAuthFetch } from '@smartmemory/sdk-js/fetch';
+import ConnectionStatus from './components/ConnectionStatus';
 import { subscribeProgress } from '@smartmemory/sdk-js/progress';
 import { useSmartMemory } from '@smartmemory/sdk-js/react';
 import '@smartmemory/graph/src/graph.css';
@@ -23,7 +25,8 @@ function App() {
   const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(!CALLBACK_ERROR);
   const [error, setError] = useState(CALLBACK_ERROR);
-  const [wsToken, setWsToken] = useState(null);
+  const [workspaceId, setWorkspaceId] = useState(null);
+  const [streamError, setStreamError] = useState(null);
   const initOnceRef = useRef(false);
   const resolvedRef = useRef(false);
   const client = useSmartMemory();
@@ -34,9 +37,13 @@ function App() {
   const clerkSignedInRef = useRef(false);
   useEffect(() => { clerkLoadedRef.current = clerkLoaded; }, [clerkLoaded]);
   useEffect(() => { clerkSignedInRef.current = isSignedIn; }, [isSignedIn]);
-  const connection = useConnectionStatus({
-    healthUrl: `${API_URL}/health`,
-  });
+  useEffect(() => client.auth.addListener((state) => {
+    setWorkspaceId(state.workspaceId);
+    if (!state.isAuthenticated) {
+      setAuthenticated(false);
+      setError('Your session ended. Sign in again.');
+    }
+  }), [client]);
 
   const tryClerkExchange = useCallback(async () => {
     if (!isSignedIn) return false;
@@ -52,7 +59,7 @@ function App() {
       client.auth.tokenManager.setTeamId(teamId);
       client.auth.currentToken = token;
       client.auth.notifyListeners();
-      setWsToken(token);
+
       return true;
     } catch {
       return false;
@@ -61,8 +68,7 @@ function App() {
 
   // Phase 1: start cookie bootstrap immediately — no need to wait for Clerk.
   // Returning users with a valid SSO cookie resolve here without any Clerk delay.
-  // Note: bootstrapSession uses cookie auth only — it does NOT produce a bearer
-  // token, so wsToken stays null until Phase 2 runs the Clerk exchange.
+  // Cookie-only sessions can stream immediately through client.auth.
   useEffect(() => {
     if (initOnceRef.current) return;
     initOnceRef.current = true;
@@ -72,14 +78,13 @@ function App() {
     client.auth.currentToken = null;
 
     client.auth.bootstrapSession().then((ok) => {
-      if (resolvedRef.current) return; // Clerk exchange already won the race
       if (ok) {
         resolvedRef.current = true;
         setAuthenticated(true);
         setLoading(false);
-        // wsToken stays null — Phase 2 will set it once Clerk loads
         return;
       }
+      if (resolvedRef.current) return; // Clerk exchange already resolved authentication
       // Bootstrap failed. Only dismiss the spinner now if Clerk has already loaded
       // and confirms the user is NOT signed in. Otherwise keep loading=true and let
       // Phase 2 (Clerk exchange) resolve it — avoiding the "Finalizing sign-in..." flash.
@@ -127,11 +132,14 @@ function App() {
     }
   }, [clerkLoaded, isSignedIn]);
 
+  const apiFetch = useMemo(() => createAuthFetch(client.auth, { apiBases: [API_URL] }), [client]);
+
   const adapter = useMemo(() => createFetchAdapter({
     apiUrl: API_URL,
+    fetchFn: apiFetch,
     getToken: () => client.auth.getCurrentToken(),
     getTeamId: () => client.auth.tokenManager.getTeamId(),
-  }), [client]);
+  }), [client, apiFetch]);
 
   // Share-replay state (Wave 1 Stream C)
   // - In replay mode (?run=<uuid>), the active run id is fixed at boot and we
@@ -154,7 +162,8 @@ function App() {
 
   useEffect(() => {
     if (!authenticated) return;
-    if (!wsToken && !REPLAY_RUN_ID) return; // need auth for live SSE
+    setStreamError(null);
+    const seen = new Set();
 
     const markQuiet = () => {
       if (quietTimerRef.current) clearTimeout(quietTimerRef.current);
@@ -165,10 +174,14 @@ function App() {
 
     const sub = subscribeProgress({
       baseUrl: API_URL,
-      token: wsToken || undefined,
+      auth: client.auth,
       runId: REPLAY_RUN_ID,
       ...(REPLAY_RUN_ID ? { fromSeq: 0 } : {}),
       onEvent: (event) => {
+        const eventKey = `${event.run_id}:${event.seq}`;
+        if (seen.has(eventKey)) return;
+        seen.add(eventKey);
+        if (seen.size > 10000) seen.delete(seen.values().next().value);
         // Track the most recent run_id (live mode); replay mode keeps REPLAY_RUN_ID.
         if (!REPLAY_RUN_ID && event.run_id) {
           setActiveRunId((prev) => (prev === event.run_id ? prev : event.run_id));
@@ -182,7 +195,7 @@ function App() {
         markQuiet();
       },
       onError: (err) => {
-        // Read-only side channel. Don't disrupt the main viewer; just log.
+        setStreamError(err?.message || 'Progress stream unavailable');
         console.warn('[viewer] share-replay progress listener error', err);
       },
     });
@@ -191,7 +204,7 @@ function App() {
       try { sub.close(); } catch { /* noop */ }
       if (quietTimerRef.current) clearTimeout(quietTimerRef.current);
     };
-  }, [authenticated, wsToken]);
+  }, [authenticated, client, workspaceId]);
 
   // In replay mode, mark complete as soon as any graph element shows up + quiet.
   // (The same effect handles this — REPLAY_RUN_ID is already set as activeRunId.)
@@ -226,19 +239,15 @@ function App() {
 
   return (
     <>
-      {!connection.connected && (
-        <div className="fixed top-0 left-0 right-0 z-[100] bg-red-900/90 border-b border-red-700 px-4 py-1.5 flex items-center justify-center gap-2 text-red-200 text-xs">
-          <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse" />
-          API unreachable — reconnecting{connection.checking ? '...' : ''}
-        </div>
-      )}
+      <ConnectionStatus connection={client.connection} terminalError={streamError} />
       {/* DIST-LITE-9: ask panel beside the graph; a clicked evidence or relation
           row focuses the corresponding node. */}
       <GraphWithAsk
         adapter={adapter}
         explorerProps={{
-          sseBaseUrl: wsToken ? API_URL : undefined,
-          sseToken: wsToken,
+          sseBaseUrl: API_URL,
+          auth: client.auth,
+          workspaceId,
           replayRunId: REPLAY_RUN_ID,
           hideSelectionToolbar: true,
           toolbarRightActions: (
