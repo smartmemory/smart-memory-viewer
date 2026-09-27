@@ -9,6 +9,7 @@ import { useSmartMemory } from '@smartmemory/sdk-js/react';
 import '@smartmemory/graph/src/graph.css';
 import ShareReplayButton from './components/ShareReplayButton';
 import GraphWithAsk from './components/GraphWithAsk';
+import { accumulateRunProgress } from './lib/runProgress';
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:9001' : 'https://api.smartmemory.ai');
 
@@ -157,7 +158,7 @@ function App() {
   //   graph is empty."
   const [activeRunId, setActiveRunId] = useState(REPLAY_RUN_ID || null);
   const [runComplete, setRunComplete] = useState(false);
-  const sawGraphElementRef = useRef(false);
+  const progressStateRef = useRef({ runId: REPLAY_RUN_ID || null, sawGraphElement: false });
   const quietTimerRef = useRef(null);
 
   useEffect(() => {
@@ -168,7 +169,7 @@ function App() {
     const markQuiet = () => {
       if (quietTimerRef.current) clearTimeout(quietTimerRef.current);
       quietTimerRef.current = setTimeout(() => {
-        if (sawGraphElementRef.current) setRunComplete(true);
+        if (progressStateRef.current.sawGraphElement) setRunComplete(true);
       }, 1500);
     };
 
@@ -182,15 +183,13 @@ function App() {
         if (seen.has(eventKey)) return;
         seen.add(eventKey);
         if (seen.size > 10000) seen.delete(seen.values().next().value);
-        // Track the most recent run_id (live mode); replay mode keeps REPLAY_RUN_ID.
-        if (!REPLAY_RUN_ID && event.run_id) {
-          setActiveRunId((prev) => (prev === event.run_id ? prev : event.run_id));
-          // New run started — reset completion state.
+        // Reset completion only when the run changes. Later events from the
+        // same run must preserve an earlier graph.node/graph.edge observation.
+        const nextProgress = accumulateRunProgress(progressStateRef.current, event, REPLAY_RUN_ID);
+        progressStateRef.current = nextProgress;
+        if (nextProgress.newRun) {
+          setActiveRunId(nextProgress.runId);
           setRunComplete(false);
-          sawGraphElementRef.current = false;
-        }
-        if (event.kind === 'graph.node' || event.kind === 'graph.edge') {
-          sawGraphElementRef.current = true;
         }
         markQuiet();
       },
