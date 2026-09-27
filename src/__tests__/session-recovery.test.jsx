@@ -6,7 +6,10 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({ client: null, props: null, subscriptions: [] }));
 vi.mock('@smartmemory/sdk-js/react', () => ({ useSmartMemory: () => state.client }));
 vi.mock('@clerk/clerk-react', () => ({ SignIn: () => null, useAuth: () => ({ isLoaded: true, isSignedIn: false }) }));
-vi.mock('../components/GraphWithAsk', () => ({ default: (props) => { state.props = props; return <div>Graph</div>; } }));
+vi.mock('../components/GraphWithAsk', () => ({ default: (props) => {
+  state.props = props;
+  return <div>Graph{props.explorerProps?.toolbarRightActions}</div>;
+} }));
 vi.mock('@smartmemory/sdk-js/progress', () => ({ subscribeProgress: (options) => {
   const sub = { options, close: vi.fn() }; state.subscriptions.push(sub); return sub;
 } }));
@@ -62,4 +65,18 @@ it('shows SDK reconnecting until that source recovers and preserves terminal str
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   await act(async () => state.subscriptions.at(-1).options.onError(new Error('HTTP 403')));
   expect(document.querySelector('[role="status"]').textContent).toBe('HTTP 403');
+});
+it('shows share replay after a graph event followed by another event from the same run', async () => {
+  vi.useFakeTimers();
+  try {
+    const stream = state.subscriptions.at(-1);
+    await act(async () => {
+      stream.options.onEvent({ run_id: 'run-1', seq: 1, kind: 'graph.node' });
+      stream.options.onEvent({ run_id: 'run-1', seq: 2, kind: 'pipeline.completed' });
+    });
+    await act(async () => vi.advanceTimersByTime(1600));
+    expect(document.querySelector('[data-testid="share-replay-button"]')?.getAttribute('data-run-id')).toBe('run-1');
+  } finally {
+    vi.useRealTimers();
+  }
 });
