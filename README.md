@@ -46,6 +46,36 @@ Production defaults to `https://api.smartmemory.ai` and `wss://api.insights.smar
 | `npm run preview` | Preview production build |
 | `npm run lint` | Run ESLint |
 
+## Sanctuary deployment
+
+Run `npm run deploy:sanctuary` to build `dist-sanctuary/` and publish
+`sanctuary.smartmemory.ai` to us1 (`root@40.160.38.143`). The deployment requires
+local Node.js, Python 3.9+, rsync, shasum, Git, and SSH access. The host needs
+Python 3, rsync, Linux atomic directory exchange support, and an existing real
+directory at `/var/www/sanctuary`.
+
+The script inspects the built artifact with `scripts/assert-prod-bundle.mjs`
+before any upload, including the foreign PostHog token guard. It uploads to a
+unique `/var/www/.stage-sanctuary-<UTC timestamp>-<run id>` directory and verifies
+the stage with a checksum comparison. The host helper exchanges stage and live
+atomically, so the live path stays present. It retains the previous tree as
+`/var/www/sanctuary.bak-<commit>-<UTC timestamp>-<run id>` and prints that rollback
+path. It never deletes older rollback copies.
+
+The swap helper is vendored from `smart-memory-infra` with its source revision
+recorded in [scripts/static_ui_swap.py](scripts/static_ui_swap.py). Failed swaps
+attempt to restore the previous tree. If recovery fails, the command exits
+nonzero and reports the state file and paths for manual recovery. A subsequent
+deploy also checks for interrupted swaps before promotion.
+
+To check syntax without building, uploading, or contacting the host:
+
+```bash
+bash -n scripts/deploy-sanctuary.sh
+node -e 'JSON.parse(require("node:fs").readFileSync("package.json", "utf8"))'
+python3 -B -c 'import ast, pathlib; ast.parse(pathlib.Path("scripts/static_ui_swap.py").read_text())'
+```
+
 ## Architecture
 
 ```
