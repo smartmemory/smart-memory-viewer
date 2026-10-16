@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sanctuary deployment now targets us1, verifies uploads in a unique stage, and
   atomically exchanges the live directory while retaining timestamped rollback
   copies. The existing production bundle inspection still runs before upload.
+- Sanctuary deployment refuses a dirty working tree so the rollback tag names the
+  deployed build, keeps only the newest 5 `sanctuary.bak-*` rollback copies
+  (prune failure warns, never fails the deploy), and prints the first 20 itemized
+  lines when the uploaded stage differs from the inspected build. A vitest contract
+  test pins the us1 host, guard ordering, stage-only rsync and these behaviours.
 
 ## 1.5.1 — 2026-09-27
 

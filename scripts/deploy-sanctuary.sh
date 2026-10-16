@@ -5,6 +5,14 @@ set -euo pipefail
 SELF=$(cd "$(dirname "$0")" && pwd)
 cd "$SELF/.."
 HOST=root@40.160.38.143
+KEEP_BACKUPS=5
+
+# The rollback tag names HEAD, so the built tree must be exactly HEAD. Checked
+# before the build inspection and before any remote operation.
+if [ -n "$(git status --porcelain)" ]; then
+  echo 'FAIL: working tree is dirty; commit or stash so the rollback tag names the deployed build' >&2
+  exit 1
+fi
 
 # A foreign PostHog token previously polluted another product's analytics.
 # Inspect the built artifact before any remote operation, including stage creation.
@@ -65,6 +73,14 @@ RS=(--recursive --links --times --checksum --delete --no-owner --no-group --time
 rsync "${RS[@]}" dist-sanctuary/ "$HOST:$STAGE/"
 rssh chmod -R a+rX "$STAGE"
 DIFF=$(rsync "${RS[@]}" --dry-run --itemize-changes dist-sanctuary/ "$HOST:$STAGE/")
-[ -z "$DIFF" ] || { echo 'FAIL: remote stage differs from the inspected build' >&2; exit 1; }
+if [ -n "$DIFF" ]; then
+  echo 'FAIL: remote stage differs from the inspected build (first 20 itemized lines):' >&2
+  printf '%s\n' "$DIFF" | head -n 20 >&2
+  exit 1
+fi
 rssh python3 - swap sanctuary "$RUN" "$TAG" "$ENTRY" "$ISHA" < "$SELF/static_ui_swap.py"
 SWAPPED=1
+
+# The swap is done. A prune failure must not fail the deploy, but it is never silent.
+rssh python3 - "$KEEP_BACKUPS" < "$SELF/prune_sanctuary_backups.py" \
+  || echo "WARN: rollback prune failed; older /var/www/sanctuary.bak-* copies were not removed" >&2

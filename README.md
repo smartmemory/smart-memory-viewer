@@ -60,7 +60,10 @@ unique `/var/www/.stage-sanctuary-<UTC timestamp>-<run id>` directory and verifi
 the stage with a checksum comparison. The host helper exchanges stage and live
 atomically, so the live path stays present. It retains the previous tree as
 `/var/www/sanctuary.bak-<commit>-<UTC timestamp>-<run id>` and prints that rollback
-path. It never deletes older rollback copies.
+path. It refuses to run from a dirty working tree (the tag names `HEAD`), and after
+a successful swap it keeps the newest 5 rollback copies and prunes older ones
+(`scripts/prune_sanctuary_backups.py`; a prune failure only warns). On a stage
+mismatch it prints the first 20 itemized differences.
 
 The swap helper is vendored from `smart-memory-infra` with its source revision
 recorded in [scripts/static_ui_swap.py](scripts/static_ui_swap.py). Failed swaps
