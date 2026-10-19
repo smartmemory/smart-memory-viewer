@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+
+### Changed
+
+- Dependencies (DEPS-POSTHOG-LATEST-1): `posthog-js` `^1.393.4` -> `^1.438.12`. No call-site change: the init options, `posthog-js/react` provider/hook and the explicit capture, identify, register calls were checked against the posthog-js changelog and a real-library probe. Lockfile untracked, not committed.
 ### Fixed
 
 - Sanctuary deployment now targets us1, verifies uploads in a unique stage, and
