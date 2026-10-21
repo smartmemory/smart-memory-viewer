@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 ### Changed
+- Test (security, DEPS-SEC-FLOOR-GUARD-CLASS-1): `src/__tests__/security-floors.test.js` judges a declared range by the lowest version it admits, ordered by full semver precedence (a prerelease sorts below its release), instead of the first numeric triple after stripping the operator. `<6.4.3`, `<=6.4.3`, `^4.1.11-rc.0` and `^4.1.12 || 4.0.18` now fail a stable floor, range syntax the check cannot model fails closed, and installed versions use the same ordering. One row table covers the repros and each grammar form.
 
 - Dependencies (DEPS-POSTHOG-LATEST-1): `posthog-js` `^1.393.4` -> `^1.438.12`. No call-site change: the init options, `posthog-js/react` provider/hook and the explicit capture, identify, register calls were checked against the posthog-js changelog and a real-library probe. Lockfile untracked, not committed.
 - Dependencies (DEPS-SEC-VIEWER-1, security floors): `vitest` `^4.0.18` -> `^4.1.11`, `vite` `^7.3.1` -> `^7.3.5`, `@clerk/clerk-react` `^5.28.2` -> `^5.61.6` (advisory-clearing targets, all same-major). Calls checked against each changelog: `ClerkProvider`/`SignIn`/`useAuth` (src/main.jsx:3, src/App.jsx:3) unchanged, the `vi.mock`/`vi.hoisted`/`vi.stubEnv`/`vi.stubGlobal`/`vi.useFakeTimers` suites and both `defineConfig` configs build and pass. `src/__tests__/security-floors.test.js` pins the three floors (declared range and installed version). Lockfile untracked, not committed.
