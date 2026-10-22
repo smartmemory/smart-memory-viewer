@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+- Test (E2E-CLASS-SELECTORS-1): the graph layout wrapper carries `data-testid="graph-layout"` so e2e finds it without utility classes.
+
 
 ### Changed
 - Test (security, DEPS-SEC-FLOOR-GUARD-CLASS-1): `src/__tests__/security-floors.test.js` judges a declared range by the lowest version it admits, ordered by full semver precedence (a prerelease sorts below its release), instead of the first numeric triple after stripping the operator. `<6.4.3`, `<=6.4.3`, `^4.1.11-rc.0` and `^4.1.12 || 4.0.18` now fail a stable floor, range syntax the check cannot model fails closed, and installed versions use the same ordering. One row table covers the repros and each grammar form.

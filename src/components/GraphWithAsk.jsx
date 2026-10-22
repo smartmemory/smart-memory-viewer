@@ -41,7 +41,7 @@ export default function GraphWithAsk({ adapter, explorerProps = {}, askLimit = 5
   }, []);
 
   return (
-    <div className="flex h-screen w-screen">
+    <div data-testid="graph-layout" className="flex h-screen w-screen">
       <aside className="w-80 shrink-0 border-r border-slate-800 overflow-hidden flex flex-col">
         <AskPanel adapter={adapter} onSelect={handleSelect} limit={askLimit} className="flex-1" />
       </aside>
