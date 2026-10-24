@@ -8,12 +8,11 @@ import { useEffect, useMemo, useState } from 'react';
  * the scheme that is ON SCREEN (the kit's hook does not see an embed host's `?theme=` override, which is
  * applied straight to <html>), and the one switch for the graph package.
  *
- * GRAPH_FOLLOWS_MODE: `@smartmemory/graph` takes `theme.mode`, but its own chrome (graph.css, the toolbar and
- * panels in GraphExplorer, the ask panel) is dark-only until UI-LIGHT-MODE-LM1-1 lands. Passing `mode: 'light'` now
- * would draw dark labels on that dark canvas, so the graph stays dark and the viewer's own surfaces switch.
- * Flip this to true once the graph package follows the mode; everything below reads it, nothing else changes.
+ * GRAPH_FOLLOWS_MODE: `@smartmemory/graph` takes `theme.mode` and, since UI-LIGHT-MODE-LM1-1 (graph 58fab96), draws
+ * its canvas and chrome in both modes. ON since UI-LIGHT-MODE-LM10-FU-1 (it was false while the graph was dark-only);
+ * everything below reads it. Set it false to pin the graph dark again.
  */
-export const GRAPH_FOLLOWS_MODE = false;
+export const GRAPH_FOLLOWS_MODE = true;
 
 /** Class that re-scopes graph-hosted chrome (toolbar buttons, the ask pane edge) to the dark palette while the graph is dark-only. */
 export const GRAPH_SCOPE_CLASS = GRAPH_FOLLOWS_MODE ? '' : 'dark';

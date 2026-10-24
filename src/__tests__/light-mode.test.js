@@ -10,7 +10,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { appliedScheme, graphTheme } from '../lib/theme.js';
+import { GRAPH_FOLLOWS_MODE, GRAPH_SCOPE_CLASS, appliedScheme, graphTheme } from '../lib/theme.js';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const read = (rel) => readFileSync(join(root, rel), 'utf8');
@@ -81,6 +81,24 @@ describe('graph switch (theme.js)', () => {
   ];
   it.each(rows)('graphTheme(follows=$follows, $scheme)', ({ follows, scheme, out }) => {
     expect(graphTheme(scheme, follows)).toEqual(out);
+  });
+
+  // UI-LIGHT-MODE-LM10-FU-1: the switch is ON. The `theme` prop the viewer hands GraphExplorer (and so the canvas) is
+  // the mode on screen; the graph's own mode -> label/edge colours are pinned in @smartmemory/graph (LM1-1 tests).
+  // system resolves to the scheme on screen (appliedScheme), so it is the light/dark row of the same class.
+  const canvasRows = [
+    { name: 'light', classes: ['light'], mode: 'light' },
+    { name: 'dark', classes: ['dark'], mode: 'dark' },
+    { name: 'system -> light', classes: ['light'], mode: 'light' },
+    { name: 'system -> dark', classes: [], mode: 'dark' },
+  ];
+  it('the switch is on and no dark scope class is forced on graph chrome', () => {
+    expect(GRAPH_FOLLOWS_MODE).toBe(true);
+    expect(GRAPH_SCOPE_CLASS).toBe('');
+  });
+  it.each(canvasRows)('graph canvas in $name mode gets the $mode theme', ({ classes, mode }) => {
+    const scheme = appliedScheme({ classList: { contains: (c) => classes.includes(c) } });
+    expect(graphTheme(scheme)).toEqual({ mode });
   });
 
   const classRows = [

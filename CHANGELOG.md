@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+- Feat (UI-LIGHT-MODE-LM10-FU-1): the graph follows the colour mode. `GRAPH_FOLLOWS_MODE` is on, so GraphExplorer gets `theme={{ mode }}` (light or dark, system resolves to the scheme on screen) and its chrome is no longer pinned to the dark palette. Needs `@smartmemory/graph` at or past 58fab96 (UI-LIGHT-MODE-LM1-1); no version bump. Dark output is unchanged (`mode: 'dark'` is the graph's default).
 - Feat (UI-LIGHT-MODE-LM10-1): light mode. Kit theme head script, `ThemeMenu` in the toolbar and on the login/loading screens, `--vw-*` semantic tokens (dark values unchanged, light from the kit tokens), embedded launches honour `?theme=light|dark`. The graph stays dark until `GRAPH_FOLLOWS_MODE` is flipped after UI-LIGHT-MODE-LM1-1 lands.
 - Fix (UI-LIGHT-MODE-LM10-1): production build no longer fails the PWA precache limit. The theme kit (design-system, radix, lucide) moves to its own `theme-kit` chunk (main chunk 2,161 kB -> 2,063 kB, under 2 MiB) and `workbox.maximumFileSizeToCacheInBytes` is 3 MiB for headroom.
 - Test (E2E-CLASS-SELECTORS-1): the graph layout wrapper carries `data-testid="graph-layout"` so e2e finds it without utility classes.
