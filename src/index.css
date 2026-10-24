@@ -1,11 +1,146 @@
 @import "tailwindcss";
+/* Shared light/dark palette (UI-LIGHT-MODE-LM10-1): .light and .dark classes on <html> carry the vars. */
+@import "@smartmemory/design-system/tokens.css";
 @source "../../smart-memory-graph/src/**/*.{js,jsx}";
 @source "../../smart-memory-sdk-js/src/**/*.{js,jsx}";
+@source "../../smart-memory-design-system/shell/**/*.jsx";
+
+/* `dark:` follows the .light/.dark class on <html> like every other SmartMemory app, not the OS media query. */
+@custom-variant dark (&:not(:where(.light, .light *)));
+
+/* tokens.css also sets the 14px root scale and text smoothing for the pixel-clean apps. The viewer is not on that
+   scale (its rem sizes and the graph package assume 16px), so those three lines are put back: dark renders as before. */
+html {
+  font-size: 100%;
+  -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
+  text-rendering: auto;
+}
+
+/* Kit token bridge for the kit's own ThemeMenu (its classes are token names: text-muted-foreground, bg-popover ...). */
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-border: hsl(var(--border));
+  --color-ring: hsl(var(--ring));
+  --spacing-control-sm: var(--sm-control-sm);
+  --spacing-touch: var(--sm-touch-target);
+  --text-ui: var(--sm-text-ui);
+  --text-ui--line-height: var(--sm-leading-ui);
+  --text-meta: var(--sm-text-meta);
+  --text-meta--line-height: var(--sm-leading-meta);
+}
+
+/* Viewer surfaces. Dark keeps the exact Tailwind slate/red/emerald values the viewer always rendered (the kit's dark
+   page colour is a different navy, so mapping straight onto it would shift every dark pixel). Light reads the kit's
+   .light tokens. Components use the bg-vw-* / text-vw-* / border-vw-* utilities below, never a palette literal.
+   A subtree under class="dark" re-scopes to the dark column (the graph package's chrome is dark-only until LM-1). */
+:root, .dark {
+  --vw-page: var(--color-slate-900);
+  --vw-hero-from: var(--color-slate-950);
+  --vw-hero-via: var(--color-slate-900);
+  --vw-hero-to: var(--color-blue-950);
+  --vw-panel: var(--color-slate-800);
+  --vw-panel-hover: var(--color-slate-700);
+  --vw-edge: var(--color-slate-700);
+  --vw-edge-soft: var(--color-slate-800);
+  --vw-edge-strong: var(--color-slate-600);
+  --vw-edge-card: color-mix(in oklab, white 20%, transparent);
+  --vw-ink: var(--color-slate-100);
+  --vw-ink-2: var(--color-slate-200);
+  --vw-ink-strong: white;
+  --vw-ink-muted: var(--color-slate-400);
+  --vw-ink-muted-2: var(--color-gray-400);
+  --vw-shadow: color-mix(in oklab, black 50%, transparent);
+  --vw-accent-ink: var(--color-blue-400);
+  --vw-accent-tint: color-mix(in oklab, var(--color-blue-500) 10%, transparent);
+  --vw-danger-bg: color-mix(in oklab, var(--color-red-900) 90%, transparent);
+  --vw-danger-bg-soft: color-mix(in oklab, var(--color-red-900) 30%, transparent);
+  --vw-danger-edge: var(--color-red-700);
+  --vw-danger-edge-deep: var(--color-red-900);
+  --vw-danger-ink: var(--color-red-300);
+  --vw-danger-ink-banner: var(--color-red-200);
+  --vw-danger-dot: var(--color-red-400);
+  --vw-success-bg: color-mix(in oklab, var(--color-emerald-900) 90%, transparent);
+  --vw-success-edge: var(--color-emerald-700);
+  --vw-success-ink: var(--color-emerald-200);
+  --vw-scroll-track: var(--color-slate-800);
+  --vw-scroll-thumb: var(--color-slate-700);
+  --vw-scroll-thumb-hover: var(--color-slate-600);
+}
+.light {
+  --vw-page: hsl(var(--background));
+  --vw-hero-from: hsl(var(--muted));
+  --vw-hero-via: hsl(var(--background));
+  --vw-hero-to: hsl(var(--muted));
+  --vw-panel: hsl(var(--card));
+  --vw-panel-hover: hsl(var(--accent));
+  --vw-edge: hsl(var(--border));
+  --vw-edge-soft: hsl(var(--border));
+  --vw-edge-strong: hsl(var(--input));
+  --vw-edge-card: hsl(var(--border));
+  --vw-ink: hsl(var(--foreground));
+  --vw-ink-2: hsl(var(--foreground));
+  --vw-ink-strong: hsl(var(--foreground));
+  --vw-ink-muted: hsl(var(--muted-foreground));
+  --vw-ink-muted-2: hsl(var(--muted-foreground));
+  --vw-shadow: color-mix(in oklab, black 12%, transparent);
+  --vw-accent-ink: hsl(var(--info));
+  --vw-accent-tint: hsl(var(--info) / 0.1);
+  --vw-danger-bg: hsl(var(--danger) / 0.1);
+  --vw-danger-bg-soft: hsl(var(--danger) / 0.08);
+  --vw-danger-edge: hsl(var(--danger) / 0.5);
+  --vw-danger-edge-deep: hsl(var(--danger) / 0.5);
+  --vw-danger-ink: hsl(var(--danger));
+  --vw-danger-ink-banner: hsl(var(--danger));
+  --vw-danger-dot: hsl(var(--danger));
+  --vw-success-bg: hsl(var(--success) / 0.1);
+  --vw-success-edge: hsl(var(--success) / 0.5);
+  --vw-success-ink: hsl(var(--success));
+  --vw-scroll-track: hsl(var(--muted));
+  --vw-scroll-thumb: hsl(var(--border));
+  --vw-scroll-thumb-hover: hsl(var(--muted-foreground));
+}
+@theme inline {
+  --color-vw-page: var(--vw-page);
+  --color-vw-hero-from: var(--vw-hero-from);
+  --color-vw-hero-via: var(--vw-hero-via);
+  --color-vw-hero-to: var(--vw-hero-to);
+  --color-vw-panel: var(--vw-panel);
+  --color-vw-panel-hover: var(--vw-panel-hover);
+  --color-vw-edge: var(--vw-edge);
+  --color-vw-edge-soft: var(--vw-edge-soft);
+  --color-vw-edge-strong: var(--vw-edge-strong);
+  --color-vw-edge-card: var(--vw-edge-card);
+  --color-vw-ink: var(--vw-ink);
+  --color-vw-ink-2: var(--vw-ink-2);
+  --color-vw-ink-strong: var(--vw-ink-strong);
+  --color-vw-ink-muted: var(--vw-ink-muted);
+  --color-vw-ink-muted-2: var(--vw-ink-muted-2);
+  --color-vw-shadow: var(--vw-shadow);
+  --color-vw-accent-ink: var(--vw-accent-ink);
+  --color-vw-accent-tint: var(--vw-accent-tint);
+  --color-vw-danger-bg: var(--vw-danger-bg);
+  --color-vw-danger-bg-soft: var(--vw-danger-bg-soft);
+  --color-vw-danger-edge: var(--vw-danger-edge);
+  --color-vw-danger-edge-deep: var(--vw-danger-edge-deep);
+  --color-vw-danger-ink: var(--vw-danger-ink);
+  --color-vw-danger-ink-banner: var(--vw-danger-ink-banner);
+  --color-vw-danger-dot: var(--vw-danger-dot);
+  --color-vw-success-bg: var(--vw-success-bg);
+  --color-vw-success-edge: var(--vw-success-edge);
+  --color-vw-success-ink: var(--vw-success-ink);
+}
 
 /* Base styles */
 body {
-  background-color: var(--color-slate-900);
-  color: var(--color-slate-100);
+  background-color: var(--vw-page);
+  color: var(--vw-ink);
   overflow: hidden;
   margin: 0;
 }
@@ -17,22 +152,22 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-slate-800);
+  background: var(--vw-scroll-track);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-slate-700);
+  background: var(--vw-scroll-thumb);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-slate-600);
+  background: var(--vw-scroll-thumb-hover);
 }
 
 /* Firefox scrollbar */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-slate-700) var(--color-slate-800);
+  scrollbar-color: var(--vw-scroll-thumb) var(--vw-scroll-track);
 }
 
 /* Hide scrollbar utility */

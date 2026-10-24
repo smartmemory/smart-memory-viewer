@@ -1,6 +1,7 @@
 import { createFetchAdapter } from '@smartmemory/graph';
 import '@smartmemory/graph/src/graph.css';
 import GraphWithAsk from './components/GraphWithAsk';
+import { ToolbarThemeMenu } from './components/ThemeControls';
 
 // No auth in local mode — token and teamId are empty strings.
 // createFetchAdapter expects { apiUrl, getToken, getTeamId } (fetchAdapter.js:17-22).
@@ -34,7 +35,7 @@ export default function LocalApp() {
   return (
     <GraphWithAsk
       adapter={localAdapter}
-      explorerProps={{ sseBaseUrl: SSE_BASE_URL, hideSelectionToolbar: true }}
+      explorerProps={{ sseBaseUrl: SSE_BASE_URL, hideSelectionToolbar: true, toolbarRightActions: <ToolbarThemeMenu /> }}
     />
   );
 }

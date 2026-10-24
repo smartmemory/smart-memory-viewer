@@ -9,6 +9,7 @@ import { useSmartMemory } from '@smartmemory/sdk-js/react';
 import '@smartmemory/graph/src/graph.css';
 import ShareReplayButton from './components/ShareReplayButton';
 import GraphWithAsk from './components/GraphWithAsk';
+import { PageThemeMenu, ToolbarThemeMenu } from './components/ThemeControls';
 import { accumulateRunProgress } from './lib/runProgress';
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:9001' : 'https://api.smartmemory.ai');
@@ -223,10 +224,11 @@ function App() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-900">
+      <div className="flex items-center justify-center h-screen bg-vw-page">
+        <PageThemeMenu />
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4" />
-          <p className="text-slate-400">Connecting to SmartMemory...</p>
+          <p className="text-vw-ink-muted">Connecting to SmartMemory...</p>
         </div>
       </div>
     );
@@ -251,6 +253,7 @@ function App() {
           hideSelectionToolbar: true,
           toolbarRightActions: (
             <>
+            <ToolbarThemeMenu />
             {activeRunId && runComplete && (
               <ShareReplayButton runId={activeRunId} />
             )}
@@ -259,7 +262,7 @@ function App() {
               onClick={handleLogout}
               aria-label="Logout"
               title="Logout"
-              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors"
+              className="p-1.5 text-vw-ink-muted hover:text-vw-ink-strong hover:bg-vw-panel-hover rounded transition-colors"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
@@ -327,14 +330,15 @@ function LoginPanel({ error: initialError, setAuthenticated, setError }) {
   // redirects and loops. Show bootstrap progress or error + Reset Login instead.
   if (isLoaded && isSignedIn) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-900">
-        <div className="bg-slate-800 rounded-xl p-8 max-w-md w-full mx-4 shadow-2xl border border-slate-700">
-          <h1 className="text-2xl font-bold text-slate-100 mb-2">SmartMemory Graph Viewer</h1>
-          <p className="text-slate-400 text-sm mb-4">
+      <div className="flex items-center justify-center h-screen bg-vw-page">
+        <PageThemeMenu />
+        <div className="bg-vw-panel rounded-xl p-8 max-w-md w-full mx-4 shadow-2xl border border-vw-edge">
+          <h1 className="text-2xl font-bold text-vw-ink mb-2">SmartMemory Graph Viewer</h1>
+          <p className="text-vw-ink-muted text-sm mb-4">
             {bootstrapping ? 'Finalizing sign-in...' : error ? 'Sign-in failed.' : 'Completing sign-in...'}
           </p>
           {error && (
-            <div className="bg-red-900/30 border border-red-700 rounded-lg p-3 mb-4 text-red-300 text-sm">
+            <div className="bg-vw-danger-bg-soft border border-vw-danger-edge rounded-lg p-3 mb-4 text-vw-danger-ink text-sm">
               {error}
             </div>
           )}
@@ -355,19 +359,20 @@ function LoginPanel({ error: initialError, setAuthenticated, setError }) {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 p-4">
-      <div className="w-full max-w-lg rounded-3xl border border-white/20 bg-slate-900/80 p-8 shadow-2xl shadow-black/50 backdrop-blur-xl">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-vw-hero-from via-vw-hero-via to-vw-hero-to p-4">
+      <PageThemeMenu />
+      <div className="w-full max-w-lg rounded-3xl border border-vw-edge-card bg-vw-page/80 p-8 shadow-2xl shadow-vw-shadow backdrop-blur-xl">
         <div className="mb-6 text-center">
           <div className="mb-4 flex justify-center">
-            <div className="rounded-lg bg-blue-500/10 p-3">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-8 w-8 text-blue-400">
+            <div className="rounded-lg bg-vw-accent-tint p-3">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-8 w-8 text-vw-accent-ink">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M7 8a3 3 0 0 1 5-2 3 3 0 0 1 5 2v1a3 3 0 0 1 0 6v1a3 3 0 0 1-5 2 3 3 0 0 1-5-2v-1a3 3 0 0 1 0-6V8z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12" />
               </svg>
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-white">Welcome to SmartMemory</h1>
-          <p className="mt-2 text-gray-400">Sign in to your cognitive architecture</p>
+          <h1 className="text-2xl font-bold text-vw-ink-strong">Welcome to SmartMemory</h1>
+          <p className="mt-2 text-vw-ink-muted-2">Sign in to your cognitive architecture</p>
         </div>
         <SignIn path="/" routing="path" appearance={CLERK_APPEARANCE} />
       </div>
@@ -376,3 +381,5 @@ function LoginPanel({ error: initialError, setAuthenticated, setError }) {
 }
 
 export default App;
+
+export { LoginPanel };

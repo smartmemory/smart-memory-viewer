@@ -2,20 +2,23 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
+import { smThemeHead } from '@smartmemory/design-system/theme/init';
 
 // Standalone local-build config — does NOT use mergeConfig because vite.config.js
 // exports a callback-form defineConfig(({ mode }) => ...) which mergeConfig cannot accept.
 // Settings from vite.config.js:55-66 are copied inline to preserve correct module resolution
 // for file:-based deps (@smartmemory/graph, @smartmemory/sdk-js).
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  // smThemeHead() injects the same head script into local.html, so the local build needs no copied script.
+  plugins: [smThemeHead(), react(), tailwindcss()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
       '@contracts': path.resolve(__dirname, '../contracts'),
     },
     // Dedupe prevents duplicate React/Cytoscape instances when resolving through symlinks.
-    dedupe: ['react', 'react-dom', 'cytoscape'],
+    // The design-system shell is a symlinked sibling checkout with no node_modules: dedupe makes its bare imports resolve from here.
+    dedupe: ['react', 'react-dom', 'cytoscape', '@radix-ui/react-dropdown-menu', 'lucide-react'],
     preserveSymlinks: false,
   },
   optimizeDeps: {

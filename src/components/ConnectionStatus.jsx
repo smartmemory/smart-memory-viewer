@@ -10,7 +10,7 @@ export default function ConnectionStatus({ connection, terminalError }) {
   if (!message) return null;
   return (
     <div role="status" aria-live="polite" title={snapshot.reason || undefined}
-      className="fixed top-0 left-0 right-0 z-[100] bg-red-900/90 border-b border-red-700 px-4 py-1.5 text-center text-red-200 text-xs">
+      className="fixed top-0 left-0 right-0 z-[100] bg-vw-danger-bg border-b border-vw-danger-edge px-4 py-1.5 text-center text-vw-danger-ink-banner text-xs">
       {message}
     </div>
   );

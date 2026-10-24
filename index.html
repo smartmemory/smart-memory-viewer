@@ -9,6 +9,9 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <title>SmartMemory Graph Viewer</title>
+    <!-- Discord Activity embed: the host's ?theme=light|dark wins over the OS, applied before first paint and never stored.
+         Runs after the kit's colour-mode script (prepended by smThemeHead) and only on an embed launch. -->
+    <script>(function(){try{var q=new URLSearchParams(location.search),m=q.get('theme');if((m==='light'||m==='dark')&&q.has('guild_id')&&q.has('channel_id')){var r=document.documentElement;r.classList.remove('light','dark');r.classList.add(m);r.style.colorScheme=m}}catch(e){}})();</script>
   </head>
   <body>
     <div id="root"></div>

@@ -25,6 +25,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { DiscordSDK } from '@discord/embedded-app-sdk';
 import { GraphExplorer, createFetchAdapter, useConnectionStatus } from '@smartmemory/graph';
 import '@smartmemory/graph/src/graph.css';
+import { useGraphTheme } from './lib/theme';
 
 // Activity iframe is served behind <clientId>.discordsays.com; all fetches are same-origin.
 // Absolute URLs are not needed — and leak the Hetzner host into the bundle.
@@ -78,6 +79,7 @@ async function claim({ accessToken, guildId, channelId, instanceId }) {
 
 function EmbeddedApp() {
   const [state, setState] = useState({ kind: 'booting', label: 'Loading…' });
+  const graphTheme = useGraphTheme();
 
   useEffect(() => {
     const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
@@ -204,10 +206,10 @@ function EmbeddedApp() {
 
   if (state.kind === 'booting') {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-900">
+      <div className="flex items-center justify-center h-screen bg-vw-page">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4" />
-          <p className="text-slate-400">{state.label}</p>
+          <p className="text-vw-ink-muted">{state.label}</p>
         </div>
       </div>
     );
@@ -215,10 +217,10 @@ function EmbeddedApp() {
 
   if (state.kind === 'error') {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-900 p-6">
-        <div className="max-w-md bg-slate-800 border border-red-900 rounded-xl p-6 text-slate-200">
+      <div className="flex items-center justify-center h-screen bg-vw-page p-6">
+        <div className="max-w-md bg-vw-panel border border-vw-danger-edge-deep rounded-xl p-6 text-vw-ink-2">
           <h1 className="text-lg font-semibold mb-2">Couldn't open the graph</h1>
-          <p className="text-sm text-slate-400">{state.message}</p>
+          <p className="text-sm text-vw-ink-muted">{state.message}</p>
         </div>
       </div>
     );
@@ -229,13 +231,14 @@ function EmbeddedApp() {
   return (
     <>
       {!connection.connected && (
-        <div className="fixed top-0 left-0 right-0 z-[100] bg-red-900/90 border-b border-red-700 px-4 py-1.5 flex items-center justify-center gap-2 text-red-200 text-xs">
-          <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse" />
+        <div className="fixed top-0 left-0 right-0 z-[100] bg-vw-danger-bg border-b border-vw-danger-edge px-4 py-1.5 flex items-center justify-center gap-2 text-vw-danger-ink-banner text-xs">
+          <div className="w-2 h-2 bg-vw-danger-dot rounded-full animate-pulse" />
           SmartMemory unreachable — reconnecting{connection.checking ? '…' : ''}
         </div>
       )}
       <GraphExplorer
         adapter={adapter}
+        theme={graphTheme}
         // The SmartMemory SSE stream is scope_prefix-filtered; focus is optional.
         sseBaseUrl={SM_API}
         extraQuery={scopePrefixSearchParam}

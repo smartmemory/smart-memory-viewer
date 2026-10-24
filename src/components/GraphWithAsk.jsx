@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { AskPanel, GraphExplorer } from '@smartmemory/graph';
 import { applyFocusHash, askSelectionTarget } from '../lib/askFocus';
+import { GRAPH_SCOPE_CLASS, useGraphTheme } from '../lib/theme';
 
 /**
  * The viewer's two-pane layout: an ask panel on the left, the graph on the right
@@ -32,6 +33,7 @@ import { applyFocusHash, askSelectionTarget } from '../lib/askFocus';
  */
 export default function GraphWithAsk({ adapter, explorerProps = {}, askLimit = 5 }) {
   const [focusKey, setFocusKey] = useState(0);
+  const theme = useGraphTheme();
 
   const handleSelect = useCallback((id, meta) => {
     const target = askSelectionTarget(id, meta);
@@ -42,11 +44,11 @@ export default function GraphWithAsk({ adapter, explorerProps = {}, askLimit = 5
 
   return (
     <div data-testid="graph-layout" className="flex h-screen w-screen">
-      <aside className="w-80 shrink-0 border-r border-slate-800 overflow-hidden flex flex-col">
+      <aside className={`${GRAPH_SCOPE_CLASS} w-80 shrink-0 border-r border-vw-edge-soft overflow-hidden flex flex-col`}>
         <AskPanel adapter={adapter} onSelect={handleSelect} limit={askLimit} className="flex-1" />
       </aside>
       <div className="flex-1 min-w-0">
-        <GraphExplorer key={focusKey} adapter={adapter} {...explorerProps} className="h-screen w-full" />
+        <GraphExplorer key={focusKey} adapter={adapter} theme={theme} {...explorerProps} className="h-screen w-full" />
       </div>
     </div>
   );

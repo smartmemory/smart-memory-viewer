@@ -72,7 +72,7 @@ export default function ShareReplayButton({ runId }) {
         title="Share this run"
         data-testid="share-replay-button"
         data-run-id={runId}
-        className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors flex items-center gap-1"
+        className="p-1.5 text-vw-ink-muted hover:text-vw-ink-strong hover:bg-vw-panel-hover rounded transition-colors flex items-center gap-1"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
           {/* link / chain icon */}
@@ -86,7 +86,7 @@ export default function ShareReplayButton({ runId }) {
         <div
           role="status"
           data-testid="share-replay-copied-toast"
-          className="absolute right-0 top-full mt-1 z-50 bg-emerald-900/90 border border-emerald-700 text-emerald-200 px-2 py-1 rounded text-xs whitespace-nowrap shadow-lg"
+          className="absolute right-0 top-full mt-1 z-50 bg-vw-success-bg border border-vw-success-edge text-vw-success-ink px-2 py-1 rounded text-xs whitespace-nowrap shadow-lg"
         >
           Link copied
         </div>
@@ -97,7 +97,7 @@ export default function ShareReplayButton({ runId }) {
           role="dialog"
           aria-label="Copy share link"
           data-testid="share-replay-fallback"
-          className="absolute right-0 top-full mt-1 z-50 bg-slate-800 border border-slate-600 rounded-lg p-2 shadow-xl flex items-center gap-2"
+          className="absolute right-0 top-full mt-1 z-50 bg-vw-panel border border-vw-edge-strong rounded-lg p-2 shadow-xl flex items-center gap-2"
         >
           <input
             ref={fallbackInputRef}
@@ -105,14 +105,14 @@ export default function ShareReplayButton({ runId }) {
             readOnly
             value={fallbackUrl}
             data-testid="share-replay-fallback-input"
-            className="bg-slate-900 border border-slate-700 text-slate-100 text-xs rounded px-2 py-1 w-72 font-mono"
+            className="bg-vw-page border border-vw-edge text-vw-ink text-xs rounded px-2 py-1 w-72 font-mono"
             onFocus={(e) => e.target.select()}
           />
           <button
             type="button"
             onClick={() => setFeedback(null)}
             aria-label="Close"
-            className="text-slate-400 hover:text-slate-200 text-xs px-1"
+            className="text-vw-ink-muted hover:text-vw-ink-2 text-xs px-1"
           >
             ✕
           </button>

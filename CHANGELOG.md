@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+- Feat (UI-LIGHT-MODE-LM10-1): light mode. Kit theme head script, `ThemeMenu` in the toolbar and on the login/loading screens, `--vw-*` semantic tokens (dark values unchanged, light from the kit tokens), embedded launches honour `?theme=light|dark`. The graph stays dark until `GRAPH_FOLLOWS_MODE` is flipped after UI-LIGHT-MODE-LM1-1 lands.
 - Test (E2E-CLASS-SELECTORS-1): the graph layout wrapper carries `data-testid="graph-layout"` so e2e finds it without utility classes.
 
 

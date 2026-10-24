@@ -3,9 +3,12 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
+import { smThemeHead } from '@smartmemory/design-system/theme/init'
 
 export default defineConfig(({ mode }) => ({
   plugins: [
+    // No-flash colour-mode script in <head> (UI-LIGHT-MODE-LM10-1); one source with every other app.
+    smThemeHead(),
     react(),
     tailwindcss(),
     // PWA only in production — in dev, the SW fights with Vite HMR causing infinite reloads
@@ -57,7 +60,8 @@ export default defineConfig(({ mode }) => ({
       '@': path.resolve(__dirname, './src'),
       '@contracts': path.resolve(__dirname, '../contracts'),
     },
-    dedupe: ['react', 'react-dom', 'cytoscape'],
+    // The design-system shell is a symlinked sibling checkout with no node_modules: dedupe makes its bare imports resolve from here.
+    dedupe: ['react', 'react-dom', 'cytoscape', '@radix-ui/react-dropdown-menu', 'lucide-react'],
     preserveSymlinks: false,
   },
   optimizeDeps: {
