@@ -38,6 +38,8 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       workbox: {
+        // UI-LIGHT-MODE-LM10-1: main chunk measured 2,161 kB at the tip (2,064 kB base) vs the 2 MiB workbox default; 3 MiB leaves headroom.
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/api\.smartmemory\.ai\/.*/i,
@@ -67,6 +69,16 @@ export default defineConfig(({ mode }) => ({
   optimizeDeps: {
     include: ['cytoscape', 'cytoscape-cose-bilkent', 'cytoscape-dagre'],
     exclude: ['@smartmemory/graph', '@smartmemory/sdk-js'],
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        // UI-LIGHT-MODE-LM10-1: keep the theme kit (design-system, radix, lucide) out of the main chunk.
+        manualChunks(id) {
+          if (/smart-memory-design-system|@radix-ui|lucide-react/.test(id)) return 'theme-kit'
+        },
+      },
+    },
   },
   server: {
     port: 5178,
