@@ -7,6 +7,7 @@ import App from './App';
 import EmbeddedApp from './EmbeddedApp';
 import { PostHogProvider } from 'posthog-js/react';
 import { createAnalyticsConfig } from '@smartmemory/sdk-js/react/analytics';
+import { RecoveryBoundary } from '@smartmemory/sdk-js/react/recovery';
 
 // FEAT-6 (discord-bot) Activity build — when VITE_ALLOW_EMBEDDED=true and the
 // URL carries Discord's launch params, skip the Clerk SSO flow and boot
@@ -67,12 +68,15 @@ if (shouldRunEmbedded()) {
   // HttpOnly session cookie issued by discord-bot's /api/graph/claim.
   createRoot(rootElement).render(
     <StrictMode>
-      <EmbeddedApp />
+      <RecoveryBoundary app="viewer-embedded">
+        <EmbeddedApp />
+      </RecoveryBoundary>
     </StrictMode>
   );
 } else {
   createRoot(rootElement).render(
     <StrictMode>
+      <RecoveryBoundary app="viewer">
       {withPostHog(
         <ClerkProvider
           publishableKey={clerkPublishableKey}
@@ -84,6 +88,7 @@ if (shouldRunEmbedded()) {
           </SmartMemoryProvider>
         </ClerkProvider>
       )}
+      </RecoveryBoundary>
     </StrictMode>
   );
 }
