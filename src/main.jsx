@@ -1,9 +1,10 @@
-import { StrictMode } from 'react';
+import { lazy, StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ClerkProvider } from '@clerk/clerk-react';
 import { SmartMemoryProvider } from '@smartmemory/sdk-js/react';
 import './index.css';
 import App from './App';
+import { LOCAL_AUTH } from './auth/identity';
 import EmbeddedApp from './EmbeddedApp';
 import { PostHogProvider } from 'posthog-js/react';
 import { createAnalyticsConfig } from '@smartmemory/sdk-js/react/analytics';
@@ -13,6 +14,10 @@ import { RecoveryBoundary } from '@smartmemory/sdk-js/react/recovery';
 // URL carries Discord's launch params, skip the Clerk SSO flow and boot
 // straight into the Activity claim handshake. Returning false keeps the
 // default behavior intact for all other deployments (viewer.smartmemory.ai etc).
+// WEB-LOCAL-AUTH-BYPASS-FU-1: dev server only. The literal DEV check folds to `null` in a production build, so the
+// local root is not even emitted as a chunk (scripts/localAuthGuard.mjs checks the dist).
+const LocalAuthRoot = import.meta.env.DEV ? lazy(() => import('./auth/LocalAuthRoot')) : null;
+
 function shouldRunEmbedded() {
   if (import.meta.env.VITE_ALLOW_EMBEDDED !== 'true') return false;
   const p = new URLSearchParams(window.location.search);
@@ -78,15 +83,25 @@ if (shouldRunEmbedded()) {
     <StrictMode>
       <RecoveryBoundary app="viewer">
       {withPostHog(
-        <ClerkProvider
-          publishableKey={clerkPublishableKey}
-          signInFallbackRedirectUrl="/"
-          signUpFallbackRedirectUrl="/"
-        >
+        import.meta.env.DEV && LocalAuthRoot && LOCAL_AUTH.enabled ? (
           <SmartMemoryProvider mode="sso" apiBaseUrl={import.meta.env.VITE_API_URL}>
-            <App />
+            <Suspense fallback={null}>
+              <LocalAuthRoot userId={LOCAL_AUTH.userId}>
+                <App />
+              </LocalAuthRoot>
+            </Suspense>
           </SmartMemoryProvider>
-        </ClerkProvider>
+        ) : (
+          <ClerkProvider
+            publishableKey={clerkPublishableKey}
+            signInFallbackRedirectUrl="/"
+            signUpFallbackRedirectUrl="/"
+          >
+            <SmartMemoryProvider mode="sso" apiBaseUrl={import.meta.env.VITE_API_URL}>
+              <App />
+            </SmartMemoryProvider>
+          </ClerkProvider>
+        )
       )}
       </RecoveryBoundary>
     </StrictMode>
