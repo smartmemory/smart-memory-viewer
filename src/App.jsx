@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createFetchAdapter } from '@smartmemory/graph';
-import { SignIn, useAuth as useClerkAuth } from '@clerk/clerk-react';
+import { SignIn } from '@clerk/clerk-react';
+import { LOCAL_AUTH, useIdentityAuth } from './auth/identity';
 import { CLERK_APPEARANCE, exchangeClerkSession } from '@smartmemory/sdk-js';
 import { createAuthFetch } from '@smartmemory/sdk-js/fetch';
 import ConnectionStatus from './components/ConnectionStatus';
@@ -32,7 +33,7 @@ function App() {
   const initOnceRef = useRef(false);
   const resolvedRef = useRef(false);
   const client = useSmartMemory();
-  const { isLoaded: clerkLoaded, isSignedIn, getToken: getClerkToken } = useClerkAuth();
+  const { isLoaded: clerkLoaded, isSignedIn, getToken: getClerkToken } = useIdentityAuth();
 
   // Refs so Phase 1's async callback can read current Clerk state without stale closures
   const clerkLoadedRef = useRef(false);
@@ -76,8 +77,11 @@ function App() {
     initOnceRef.current = true;
     if (CALLBACK_ERROR) { setLoading(false); return; }
 
-    client.auth.tokenManager.setAccessToken(null);
-    client.auth.currentToken = null;
+    // WEB-LOCAL-AUTH-BYPASS-FU-1: local mode keeps the dev-bypass bearer that auth/LocalAuthRoot installed.
+    if (!LOCAL_AUTH.enabled) {
+      client.auth.tokenManager.setAccessToken(null);
+      client.auth.currentToken = null;
+    }
 
     client.auth.bootstrapSession().then((ok) => {
       if (ok) {
@@ -87,6 +91,14 @@ function App() {
         return;
       }
       if (resolvedRef.current) return; // Clerk exchange already resolved authentication
+      if (LOCAL_AUTH.enabled) {
+        // No Clerk exchange follows in local mode: say why the bypass identity did not load.
+        resolvedRef.current = true;
+        setError('Local auth bootstrap failed: is the API up with SMARTMEMORY_AUTH_BYPASS=true and the local identity seeded?');
+        setAuthenticated(false);
+        setLoading(false);
+        return;
+      }
       // Bootstrap failed. Only dismiss the spinner now if Clerk has already loaded
       // and confirms the user is NOT signed in. Otherwise keep loading=true and let
       // Phase 2 (Clerk exchange) resolve it — avoiding the "Finalizing sign-in..." flash.
@@ -103,7 +115,7 @@ function App() {
   // Always sets authenticated=true on success — including when Phase 1 failed and
   // left loading=true while waiting for Clerk. This eliminates the LoginPanel flash.
   useEffect(() => {
-    if (!clerkLoaded || !isSignedIn) return;
+    if (!clerkLoaded || !isSignedIn || LOCAL_AUTH.enabled) return;
 
     tryClerkExchange().then((ok) => {
       if (ok) {
@@ -281,7 +293,7 @@ function App() {
 function LoginPanel({ error: initialError, setAuthenticated, setError }) {
   const [error, setLocalError] = useState(initialError || null);
   const [bootstrapping, setBootstrapping] = useState(false);
-  const { isLoaded, isSignedIn, getToken, signOut } = useClerkAuth();
+  const { isLoaded, isSignedIn, getToken, signOut } = useIdentityAuth();
 
   const client = useSmartMemory();
 
@@ -295,7 +307,7 @@ function LoginPanel({ error: initialError, setAuthenticated, setError }) {
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
-      if (!isLoaded || !isSignedIn) return;
+      if (!isLoaded || !isSignedIn || LOCAL_AUTH.enabled) return;
       setBootstrapping(true);
       setLocalError(null);
       try {

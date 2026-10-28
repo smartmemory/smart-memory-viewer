@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
 import { smThemeHead } from '@smartmemory/design-system/theme/init'
+import { localAuthGuardPlugin } from './scripts/localAuthGuard.mjs'
 
 export default defineConfig(({ mode }) => ({
   plugins: [
@@ -11,6 +12,8 @@ export default defineConfig(({ mode }) => ({
     smThemeHead(),
     react(),
     tailwindcss(),
+    // WEB-LOCAL-AUTH-BYPASS-FU-1: refuses a VITE_AUTH_MODE=local build and scans the dist.
+    localAuthGuardPlugin(),
     // PWA only in production — in dev, the SW fights with Vite HMR causing infinite reloads
     ...(mode === 'production' ? [VitePWA({
       registerType: 'autoUpdate',
