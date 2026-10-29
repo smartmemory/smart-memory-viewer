@@ -8,7 +8,10 @@ import { LOCAL_AUTH } from './auth/identity';
 import EmbeddedApp from './EmbeddedApp';
 import { PostHogProvider } from 'posthog-js/react';
 import { createAnalyticsConfig } from '@smartmemory/sdk-js/react/analytics';
-import { RecoveryBoundary } from '@smartmemory/sdk-js/react/recovery';
+import { RecoveryBoundary, installVersionCheck, LazyFallback } from '@smartmemory/sdk-js/react/recovery';
+
+// A returning tab reloads onto the new build instead of waiting for a chunk error (WEB-STALE-TAB-VERSION-CHECK-1).
+installVersionCheck({ app: 'viewer', dev: import.meta.env.DEV });
 
 // FEAT-6 (discord-bot) Activity build — when VITE_ALLOW_EMBEDDED=true and the
 // URL carries Discord's launch params, skip the Clerk SSO flow and boot
@@ -85,7 +88,7 @@ if (shouldRunEmbedded()) {
       {withPostHog(
         import.meta.env.DEV && LocalAuthRoot && LOCAL_AUTH.enabled ? (
           <SmartMemoryProvider mode="sso" apiBaseUrl={import.meta.env.VITE_API_URL}>
-            <Suspense fallback={null}>
+            <Suspense fallback={<LazyFallback />}>
               <LocalAuthRoot userId={LOCAL_AUTH.userId}>
                 <App />
               </LocalAuthRoot>
