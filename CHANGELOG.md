@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2.0.1
+
+Version bump to 2.0.1, every SmartMemory repo reads the same version (REL-2.0-VERSION-BUMP-2.0.1-1).
+
 ## Unreleased
 
 - **WEB-STALE-TAB-VERSION-CHECK-1:** a returning tab reloads onto the new build (`installVersionCheck` from `@smartmemory/sdk-js/react/recovery`, wired in the entry file); its lazy local-auth `<Suspense fallback={null}>` uses the shared `<LazyFallback />`.
