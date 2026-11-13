@@ -11,6 +11,7 @@ Version bump to 2.0.1, every SmartMemory repo reads the same version (REL-2.0-VE
 
 ## Unreleased
 
+- BRAND-LOGO-MARK-CENTER-1: re-centred logo mark (badge frame y 4 -> 1.5) in the public logo, favicon and touch-icon copies.
 - **WEB-STALE-TAB-VERSION-CHECK-1:** a returning tab reloads onto the new build (`installVersionCheck` from `@smartmemory/sdk-js/react/recovery`, wired in the entry file); its lazy local-auth `<Suspense fallback={null}>` uses the shared `<LazyFallback />`.
 
 - WEB-LOCAL-AUTH-BYPASS-FU-1 (dev only): `VITE_AUTH_MODE=local` on the vite dev server (`npm run dev`) at a localhost origin signs the viewer in as a fixed local identity through the backend's existing dev bypass (`Bearer dev-bypass-<id>`, needs `SMARTMEMORY_AUTH_BYPASS=true` on the API and the identity seeded by smart-memory-ops `units/STAGE-2.0-LOCAL-1/seed_local_auth.py`). `ClerkProvider` is never mounted (`src/main.jsx` renders `src/auth/LocalAuthRoot.jsx` inside `SmartMemoryProvider` instead), `App.jsx` reads its identity through `src/auth/identity.js` and skips the Clerk exchange, and a red LOCAL AUTH badge shows. Production cannot reach it: `scripts/localAuthGuard.mjs` fails any `vite build` with `VITE_AUTH_MODE=local` and fails a build whose dist carries the bypass prefix, and every branch sits behind a literal `import.meta.env.DEV`. Optional `VITE_LOCAL_AUTH_USER_ID` (default `localdev`). The standalone `build:local` bundle has no auth code and is untouched. Tests: `local-auth-guard.test.js`, `local-auth-root.test.jsx`.
